@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Патрик-террор: Аэропорт с боссом-пауком (финал)</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            font-size: 22px;
+            text-shadow: 0 0 15px rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.5);
+            padding: 8px 16px;
+            border-radius: 8px;
+            z-index: 10;
+            pointer-events: none;
+        }
+        #info span { color: #ff88aa; }
+        #bossAlert {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(100,0,0,0.9);
+            padding: 20px 40px;
+            border: 4px solid #ff0000;
+            border-radius: 20px;
+            color: #ff4444;
+            font-size: 48px;
+            font-weight: bold;
+            text-shadow: 0 0 30px #ff0000;
+            z-index: 15;
+            pointer-events: none;
+            text-align: center;
+        }
+        #bossAlert small { font-size: 24px; color: #ffaa00; display: block; }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: rgba(255,255,255,0.9);
+            font-size: 32px;
+            text-shadow: 0 0 8px #000;
+            z-index: 10;
+            pointer-events: none;
+        }
+        #gameover {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(10,0,0,0.9);
+            padding: 30px 50px;
+            border: 3px solid #ff4466;
+            border-radius: 20px;
+            color: #ff4466;
+            text-align: center;
+            z-index: 20;
+            font-size: 36px;
+            pointer-events: none;
+        }
+        #gameover small {
+            display: block;
+            font-size: 18px;
+            color: #aaa;
+            margin-top: 10px;
+        }
+        #restart {
+            display: none;
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 14px 40px;
+            background: #ff4466;
+            border: none;
+            border-radius: 30px;
+            color: #fff;
+            font-size: 22px;
+            cursor: pointer;
+            z-index: 30;
+            box-shadow: 0 0 30px #ff4466;
+            transition: 0.2s;
+            font-family: inherit;
+        }
+        #restart:hover { background: #ff7799; transform: translateX(-50%) scale(1.05); }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #ddd;
+            font-size: 13px;
+            background: rgba(0,0,0,0.5);
+            padding: 8px 14px;
+            border-radius: 8px;
+            z-index: 10;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<div id="info">
+    ❤️ <span id="hp">100</span> &nbsp;|&nbsp; 🧟 <span id="kills">0</span> &nbsp;|&nbsp; ⏱ <span id="time">0</span>с
+</div>
+<div id="bossAlert">
+    🕷️ БОСС-ПАУК ПОЯВИЛСЯ! 🕷️
+    <small>Убейте его, чтобы остановить нашествие!</small>
+</div>
+<div id="crosshair">✚</div>
+<div id="gameover">
+    💀 ВАС СЪЕЛИ ПАТРИКИ 💀<br>
+    <small>убито: <span id="finalKills">0</span></small>
+</div>
+<button id="restart">🔄 Перезапустить</button>
+<div id="controls">WASD — ходьба | Мышь — осмотр | ЛКМ — стрельба</div>
+
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+        }
+    }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+
+    // ---------- СЦЕНА ----------
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87CEEB);
+    scene.fog = new THREE.Fog(0x87CEEB, 50, 120);
+
+    const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 200);
+    camera.position.set(0, 1.6, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(renderer.domElement);
+
+    // ---------- ОСВЕЩЕНИЕ ----------
+    const hemiLight = new THREE.HemisphereLight(0x88ccff, 0x445533, 0.8);
+    scene.add(hemiLight);
+
+    const sunLight = new THREE.DirectionalLight(0xffeedd, 1.5);
+    sunLight.position.set(40, 60, 30);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 2048;
+    sunLight.shadow.mapSize.height = 2048;
+    const d = 60;
+    sunLight.shadow.camera.left = -d;
+    sunLight.shadow.camera.right = d;
+    sunLight.shadow.camera.top = d;
+    sunLight.shadow.camera.bottom = -d;
+    sunLight.shadow.camera.near = 1;
+    sunLight.shadow.camera.far = 100;
+    scene.add(sunLight);
+
+    const sunSphere = new THREE.Mesh(
+        new THREE.SphereGeometry(2, 16, 16),
+        new THREE.MeshBasicMaterial({ color: 0xffdd77 })
+    );
+    sunSphere.position.copy(sunLight.position).multiplyScalar(1.5);
+    scene.add(sunSphere);
+
+    const backLight = new THREE.DirectionalLight(0x88aaff, 0.3);
+    backLight.position.set(-30, 20, -40);
+    scene.add(backLight);
+
+    // ---------- ЛОКАЦИЯ ----------
+    const groundGeo = new THREE.PlaneGeometry(120, 120);
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0x5a7a5a, roughness: 0.9 });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.1;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    const runwayMat = new THREE.MeshStandardMaterial({ color: 0x777788, roughness: 0.8 });
+    const runway = new THREE.Mesh(new THREE.PlaneGeometry(12, 60), runwayMat);
+    runway.rotation.x = -Math.PI / 2;
+    runway.position.set(0, 0, -10);
+    runway.receiveShadow = true;
+    scene.add(runway);
+
+    const lineMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee });
+    for (let i = -25; i <= 25; i += 3) {
+        const line = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 1.5), lineMat);
+        line.rotation.x = -Math.PI / 2;
+        line.position.set(0, 0.01, i - 10);
+        scene.add(line);
+    }
+
+    // Здания
+    function createBuilding(x, z, w, h, d, color = 0x8a9baa) {
+        const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.6, metalness: 0.1 });
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+        mesh.position.set(x, h/2, z);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        scene.add(mesh);
+        const winMat = new THREE.MeshStandardMaterial({ color: 0x88aadd, emissive: 0x335577, emissiveIntensity: 0.2 });
+        for (let i = 0; i < 4; i++) {
+            const win = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 1.2), winMat);
+            win.position.set(x + (i-1.5)*1.2, h*0.6, z + d/2 + 0.01);
+            scene.add(win);
+        }
+        return mesh;
+    }
+    createBuilding(-15, 8, 5, 3, 4, 0x7a8b9a);
+    createBuilding(18, -5, 6, 4, 5, 0x9aabb8);
+    createBuilding(-12, -18, 7, 3, 4, 0x8a9baa);
+    createBuilding(14, 18, 5, 3, 5, 0x7a8b9a);
+    createBuilding(0, -30, 10, 2, 4, 0x6a7b8a);
+
+    function createTree(x, z) {
+        const trunk = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.2, 0.3, 1.5, 6),
+            new THREE.MeshStandardMaterial({ color: 0x6d4c41 })
+        );
+        trunk.position.set(x, 0.75, z);
+        trunk.castShadow = true;
+        scene.add(trunk);
+        const crown = new THREE.Mesh(
+            new THREE.ConeGeometry(1.2, 2, 8),
+            new THREE.MeshStandardMaterial({ color: 0x388e3c })
+        );
+        crown.position.set(x, 2.2, z);
+        crown.castShadow = true;
+        scene.add(crown);
+    }
+    createTree(22, -12);
+    createTree(-22, 15);
+    createTree(25, 20);
+    createTree(-25, -20);
+    createTree(28, 5);
+    createTree(-28, -8);
+
+    // ---------- САМОЛЁТ ----------
+    const planeGroup = new THREE.Group();
+    scene.add(planeGroup);
+
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x3a4a5a, roughness: 0.9 });
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(3.8, 12), floorMat);
+    floor.rotation.x = -Math.PI/2;
+    floor.position.set(0, 0.01, 2);
+    floor.receiveShadow = true;
+    planeGroup.add(floor);
+
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x7a8a9a, roughness: 0.6, metalness: 0.2 });
+    const wallL = new THREE.Mesh(new THREE.PlaneGeometry(12, 2.6), wallMat);
+    wallL.position.set(-1.9, 1.3, 2);
+    wallL.rotation.y = Math.PI/2;
+    wallL.castShadow = true;
+    wallL.receiveShadow = true;
+    planeGroup.add(wallL);
+    const wallR = new THREE.Mesh(new THREE.PlaneGeometry(12, 2.6), wallMat);
+    wallR.position.set(1.9, 1.3, 2);
+    wallR.rotation.y = -Math.PI/2;
+    wallR.castShadow = true;
+    wallR.receiveShadow = true;
+    planeGroup.add(wallR);
+
+    const wallFrontMat = new THREE.MeshStandardMaterial({ color: 0x7a8a9a, roughness: 0.6 });
+    const doorWidth = 1.2;
+    const wallHeight = 2.6;
+    const wallWidth = (3.8 - doorWidth) / 2;
+    const wallFL = new THREE.Mesh(new THREE.PlaneGeometry(wallWidth, wallHeight), wallFrontMat);
+    wallFL.position.set(-(doorWidth/2 + wallWidth/2), 1.3, -4);
+    wallFL.rotation.y = 0;
+    wallFL.castShadow = true;
+    wallFL.receiveShadow = true;
+    planeGroup.add(wallFL);
+    const wallFR = new THREE.Mesh(new THREE.PlaneGeometry(wallWidth, wallHeight), wallFrontMat);
+    wallFR.position.set((doorWidth/2 + wallWidth/2), 1.3, -4);
+    wallFR.rotation.y = 0;
+    wallFR.castShadow = true;
+    wallFR.receiveShadow = true;
+    planeGroup.add(wallFR);
+    const wallTop = new THREE.Mesh(new THREE.PlaneGeometry(doorWidth, 0.4), wallFrontMat);
+    wallTop.position.set(0, 2.4, -4);
+    wallTop.rotation.y = 0;
+    wallTop.castShadow = true;
+    wallTop.receiveShadow = true;
+    planeGroup.add(wallTop);
+
+    const wallBL = new THREE.Mesh(new THREE.PlaneGeometry(wallWidth, wallHeight), wallFrontMat);
+    wallBL.position.set(-(doorWidth/2 + wallWidth/2), 1.3, 8);
+    wallBL.rotation.y = 0;
+    wallBL.castShadow = true;
+    wallBL.receiveShadow = true;
+    planeGroup.add(wallBL);
+    const wallBR = new THREE.Mesh(new THREE.PlaneGeometry(wallWidth, wallHeight), wallFrontMat);
+    wallBR.position.set((doorWidth/2 + wallWidth/2), 1.3, 8);
+    wallBR.rotation.y = 0;
+    wallBR.castShadow = true;
+    wallBR.receiveShadow = true;
+    planeGroup.add(wallBR);
+    const wallBTop = new THREE.Mesh(new THREE.PlaneGeometry(doorWidth, 0.4), wallFrontMat);
+    wallBTop.position.set(0, 2.4, 8);
+    wallBTop.rotation.y = 0;
+    wallBTop.castShadow = true;
+    wallBTop.receiveShadow = true;
+    planeGroup.add(wallBTop);
+
+    const ceilingMat = new THREE.MeshStandardMaterial({ color: 0x8a9aaa, roughness: 0.7 });
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(3.8, 12), ceilingMat);
+    ceiling.rotation.x = Math.PI/2;
+    ceiling.position.set(0, 2.6, 2);
+    ceiling.castShadow = true;
+    ceiling.receiveShadow = true;
+    planeGroup.add(ceiling);
+
+    const wingMat = new THREE.MeshStandardMaterial({ color: 0xccccdd, roughness: 0.4, metalness: 0.3 });
+    const wingL = new THREE.Mesh(new THREE.BoxGeometry(4, 0.1, 1.5), wingMat);
+    wingL.position.set(-4, 0.6, 0);
+    wingL.castShadow = true;
+    wingL.receiveShadow = true;
+    planeGroup.add(wingL);
+    const wingR = new THREE.Mesh(new THREE.BoxGeometry(4, 0.1, 1.5), wingMat);
+    wingR.position.set(4, 0.6, 0);
+    wingR.castShadow = true;
+    wingR.receiveShadow = true;
+    planeGroup.add(wingR);
+
+    function createSeat(x, z, flip = false) {
+        const group = new THREE.Group();
+        const seatMat = new THREE.MeshStandardMaterial({ color: 0xcc5566, roughness: 0.8 });
+        const seat = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.3, 0.8), seatMat);
+        seat.position.y = 0.4;
+        seat.castShadow = true;
+        seat.receiveShadow = true;
+        group.add(seat);
+        const backMat = new THREE.MeshStandardMaterial({ color: 0xbb4455, roughness: 0.8 });
+        const back = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.7, 0.1), backMat);
+        back.position.set(0, 0.75, flip ? 0.4 : -0.4);
+        back.castShadow = true;
+        back.receiveShadow = true;
+        group.add(back);
+        const armMat = new THREE.MeshStandardMaterial({ color: 0x999999 });
+        for (let side of [-1, 1]) {
+            const arm = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.2, 0.5), armMat);
+            arm.position.set(side * 0.45, 0.55, 0);
+            group.add(arm);
+        }
+        group.position.set(x, 0, z);
+        planeGroup.add(group);
+    }
+    for (let z = -3; z <= 7; z += 1.8) {
+        if (Math.abs(z) < 0.5) continue;
+        createSeat(-1.2, z, true);
+        createSeat(1.2, z, false);
+    }
+
+    const shelfMat = new THREE.MeshStandardMaterial({ color: 0x6a7a8a, roughness: 0.5 });
+    for (let z = -3; z <= 7; z += 2.5) {
+        for (let side of [-1, 1]) {
+            const shelf = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.3, 1.8), shelfMat);
+            shelf.position.set(side * 1.8, 2.3, z);
+            shelf.castShadow = true;
+            shelf.receiveShadow = true;
+            planeGroup.add(shelf);
+        }
+    }
+
+    const windowMat = new THREE.MeshStandardMaterial({ color: 0x88ccff, emissive: 0x4488bb, emissiveIntensity: 0.1 });
+    for (let z = -3; z <= 7; z += 2.2) {
+        for (let side of [-1, 1]) {
+            const win = new THREE.Mesh(new THREE.CircleGeometry(0.25, 12), windowMat);
+            win.position.set(side * 1.9, 1.6, z);
+            win.rotation.y = side * Math.PI/2;
+            planeGroup.add(win);
+        }
+    }
+
+    // ---------- ИГРОК ----------
+    let player = {
+        x: 0,
+        z: 2,
+        y: 1.6,
+        hp: 100,
+        maxHp: 100,
+        speed: 5,
+        rotationY: 0,
+        rotationX: 0
+    };
+
+    const keys = { w: false, a: false, s: false, d: false };
+
+    // ---------- ВРАГИ ----------
+    let enemies = [];
+    let kills = 0;
+    let gameTime = 0;
+    let spawnTimer = 0;
+    let spawnInterval = 80;
+    let difficulty = 1;
+
+    let boss = null;
+    let bossSpawned = false;
+    const BOSS_NEED = 10;
+    let bossDefeated = false;
+
+    function createPatrick(x, z) {
+        const group = new THREE.Group();
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0xff88aa, roughness: 0.3 });
+        const body = new THREE.Mesh(new THREE.SphereGeometry(0.6, 12, 12), bodyMat);
+        body.castShadow = true;
+        group.add(body);
+        const eyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+        eyeWhite.position.set(-0.3, 0.2, 0.6);
+        group.add(eyeWhite);
+        const eyeWhite2 = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+        eyeWhite2.position.set(0.3, 0.2, 0.6);
+        group.add(eyeWhite2);
+        const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8), new THREE.MeshStandardMaterial({ color: 0x000000 }));
+        pupil.position.set(-0.35, 0.15, 0.75);
+        group.add(pupil);
+        const pupil2 = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8), new THREE.MeshStandardMaterial({ color: 0x000000 }));
+        pupil2.position.set(0.35, 0.15, 0.75);
+        group.add(pupil2);
+        const smile = new THREE.Mesh(
+            new THREE.TorusGeometry(0.25, 0.04, 6, 12, Math.PI),
+            new THREE.MeshStandardMaterial({ color: 0x000000 })
+        );
+        smile.rotation.x = 0.1;
+        smile.rotation.z = 0.1;
+        smile.position.set(0, -0.1, 0.7);
+        group.add(smile);
+        const pants = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.6, 0.7, 0.3, 8),
+            new THREE.MeshStandardMaterial({ color: 0x2e7d32 })
+        );
+        pants.position.y = -0.6;
+        group.add(pants);
+
+        group.position.set(x, 0.6, z);
+        scene.add(group);
+        return {
+            mesh: group,
+            x, z,
+            speed: 0.5 + Math.random() * 0.4 + difficulty * 0.05,
+            damage: 10 + difficulty * 2,
+            radius: 0.7,
+            isBoss: false
+        };
+    }
+
+    function createBoss(x, z) {
+        const group = new THREE.Group();
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x4a0a5a, roughness: 0.2, metalness: 0.3 });
+        const body = new THREE.Mesh(new THREE.SphereGeometry(1.2, 16, 16), bodyMat);
+        body.castShadow = true;
+        group.add(body);
+        const eyeMat = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 0.5 });
+        for (let i = 0; i < 6; i++) {
+            const eye = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8), eyeMat);
+            const angle = (i / 6) * Math.PI * 2;
+            eye.position.set(Math.cos(angle)*0.8, Math.sin(angle)*0.4+0.2, 1.0);
+            group.add(eye);
+        }
+        const legMat = new THREE.MeshStandardMaterial({ color: 0x2a0a2a });
+        for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2;
+            const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 0.8, 6), legMat);
+            leg.position.set(Math.cos(angle)*0.9, -0.4, Math.sin(angle)*0.9);
+            leg.rotation.z = Math.PI/2;
+            leg.rotation.y = angle;
+            leg.castShadow = true;
+            group.add(leg);
+        }
+        const fangMat = new THREE.MeshStandardMaterial({ color: 0xcccccc });
+        for (let side of [-1, 1]) {
+            const fang = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.3, 6), fangMat);
+            fang.position.set(side * 0.25, -0.1, 1.2);
+            fang.rotation.x = 0.3;
+            fang.rotation.z = side * 0.2;
+            group.add(fang);
+        }
+
+        group.position.set(x, 1.2, z);
+        scene.add(group);
+        return {
+            mesh: group,
+            x, z,
+            speed: 0.3 + difficulty * 0.02,
+            damage: 30,
+            radius: 1.5,
+            hp: 10,
+            maxHp: 10,
+            isBoss: true
+        };
+    }
+
+    function spawnEnemy() {
+        let side = Math.floor(Math.random() * 4);
+        let x, z;
+        const range = 40;
+        if (side === 0) { x = (Math.random() - 0.5) * 40; z = -range; }
+        else if (side === 1) { x = (Math.random() - 0.5) * 40; z = range; }
+        else if (side === 2) { x = -range; z = (Math.random() - 0.5) * 40; }
+        else { x = range; z = (Math.random() - 0.5) * 40; }
+        const pat = createPatrick(x, z);
+        enemies.push(pat);
+    }
+
+    function spawnBoss() {
+        if (bossSpawned || bossDefeated) return;
+        let angle = Math.random() * Math.PI * 2;
+        let dist = 15 + Math.random() * 10;
+        let x = player.x + Math.cos(angle) * dist;
+        let z = player.z + Math.sin(angle) * dist;
+        const limit = 40;
+        x = Math.max(-limit, Math.min(limit, x));
+        z = Math.max(-limit, Math.min(limit, z));
+        boss = createBoss(x, z);
+        bossSpawned = true;
+        document.getElementById('bossAlert').style.display = 'block';
+        setTimeout(() => {
+            document.getElementById('bossAlert').style.display = 'none';
+        }, 3000);
+    }
+
+    // ---------- ПУЛИ ----------
+    let bullets = [];
+    const bulletSpeed = 30;
+
+    function shoot() {
+        const dir = new THREE.Vector3();
+        camera.getWorldDirection(dir);
+        const bulletMesh = new THREE.Mesh(
+            new THREE.SphereGeometry(0.12, 6),
+            new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0xff6600, emissiveIntensity: 0.6 })
+        );
+        const start = new THREE.Vector3(player.x, player.y, player.z).add(dir.clone().multiplyScalar(1.2));
+        bulletMesh.position.copy(start);
+        scene.add(bulletMesh);
+        bullets.push({
+            mesh: bulletMesh,
+            dir: dir,
+            speed: bulletSpeed,
+            life: 60
+        });
+    }
+
+    // ---------- UI ----------
+    const hpSpan = document.getElementById('hp');
+    const killsSpan = document.getElementById('kills');
+    const timeSpan = document.getElementById('time');
+    const finalKillsSpan = document.getElementById('finalKills');
+    const gameoverDiv = document.getElementById('gameover');
+    const restartBtn = document.getElementById('restart');
+
+    // ---------- УПРАВЛЕНИЕ ----------
+    let isLocked = false;
+    renderer.domElement.addEventListener('click', () => {
+        if (!isLocked) renderer.domElement.requestPointerLock();
+    });
+    document.addEventListener('pointerlockchange', () => {
+        isLocked = document.pointerLockElement === renderer.domElement;
+    });
+    document.addEventListener('mousemove', (e) => {
+        if (!isLocked) return;
+        const sens = 0.002;
+        player.rotationY -= e.movementX * sens;
+        player.rotationX -= e.movementY * sens;
+        player.rotationX = Math.max(-Math.PI/2.2, Math.min(Math.PI/2.2, player.rotationX));
+    });
+    document.addEventListener('mousedown', (e) => {
+        if (e.button === 0 && isLocked) shoot();
+    });
+
+    document.addEventListener('keydown', (e) => {
+        const key = e.key.toLowerCase();
+        if (key === 'w' || key === 'a' || key === 's' || key === 'd') {
+            keys[key] = true;
+            e.preventDefault();
+        }
+    });
+    document.addEventListener('keyup', (e) => {
+        const key = e.key.toLowerCase();
+        if (key === 'w' || key === 'a' || key === 's' || key === 'd') {
+            keys[key] = false;
+            e.preventDefault();
+        }
+    });
+
+    // ---------- ИГРА ----------
+    let gameRunning = true;
+
+    function update() {
+        if (!gameRunning) return;
+        gameTime++;
+        if (gameTime % 60 === 0) timeSpan.textContent = Math.floor(gameTime/60);
+        difficulty = 1 + Math.floor(gameTime / 600) * 0.5;
+        spawnInterval = Math.max(30, 80 - difficulty * 4);
+
+        if (kills >= BOSS_NEED && !bossSpawned && !bossDefeated) {
+            spawnBoss();
+        }
+
+        // Движение игрока
+        let dx = 0, dz = 0;
+        if (keys.w) dz -= 1;
+        if (keys.s) dz += 1;
+        if (keys.a) dx -= 1;
+        if (keys.d) dx += 1;
+        if (dx || dz) {
+            const len = Math.hypot(dx, dz);
+            dx /= len; dz /= len;
+            const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0,1,0), player.rotationY);
+            const right = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0,1,0), player.rotationY);
+            const move = new THREE.Vector3()
+                .addScaledVector(forward, -dz * player.speed * 0.06)
+                .addScaledVector(right, dx * player.speed * 0.06);
+            let newX = player.x + move.x;
+            let newZ = player.z + move.z;
+            const limit = 45;
+            newX = Math.max(-limit, Math.min(limit, newX));
+            newZ = Math.max(-limit, Math.min(limit, newZ));
+            const buildings = [
+                { x: -15, z: 8, w: 5, d: 4 },
+                { x: 18, z: -5, w: 6, d: 5 },
+                { x: -12, z: -18, w: 7, d: 4 },
+                { x: 14, z: 18, w: 5, d: 5 },
+                { x: 0, z: -30, w: 10, d: 4 }
+            ];
+            let blocked = false;
+            for (let b of buildings) {
+                const hw = b.w/2 + 0.6;
+                const hd = b.d/2 + 0.6;
+                if (Math.abs(newX - b.x) < hw && Math.abs(newZ - b.z) < hd) {
+                    blocked = true;
+                    break;
+                }
+            }
+            if (!blocked) {
+                player.x = newX;
+                player.z = newZ;
+            }
+        }
+
+        camera.position.set(player.x, player.y, player.z);
+        const euler = new THREE.Euler(player.rotationX, player.rotationY, 0, 'YXZ');
+        camera.quaternion.setFromEuler(euler);
+
+        // Спавн обычных врагов
+        spawnTimer++;
+        if (spawnTimer >= spawnInterval) {
+            spawnTimer = 0;
+            let count = 1 + Math.floor(difficulty / 2);
+            for (let i=0; i<count; i++) spawnEnemy();
+        }
+
+        // Движение обычных врагов
+        for (let i=enemies.length-1; i>=0; i--) {
+            const e = enemies[i];
+            const dx = player.x - e.x;
+            const dz = player.z - e.z;
+            const dist = Math.hypot(dx, dz);
+            if (dist > 0.3) {
+                const speed = e.speed * 0.06;
+                e.x += (dx/dist) * speed;
+                e.z += (dz/dist) * speed;
+                e.mesh.position.set(e.x, 0.6, e.z);
+                e.mesh.lookAt(player.x, 0.6, player.z);
+            }
+            if (dist < 0.8) {
+                player.hp -= e.damage;
+                scene.remove(e.mesh);
+                enemies.splice(i, 1);
+                if (player.hp < 0) player.hp = 0;
+                hpSpan.textContent = Math.round(player.hp);
+                if (player.hp <= 0) { gameOver(); return; }
+            }
+        }
+
+        // Движение босса
+        if (boss && !bossDefeated) {
+            const dx = player.x - boss.x;
+            const dz = player.z - boss.z;
+            const dist = Math.hypot(dx, dz);
+            if (dist > 0.5) {
+                const speed = boss.speed * 0.06;
+                boss.x += (dx/dist) * speed;
+                boss.z += (dz/dist) * speed;
+                boss.mesh.position.set(boss.x, 1.2, boss.z);
+                boss.mesh.lookAt(player.x, 1.2, player.z);
+            }
+            if (dist < 1.8) {
+                player.hp -= boss.damage;
+                if (player.hp < 0) player.hp = 0;
+                hpSpan.textContent = Math.round(player.hp);
+                if (player.hp <= 0) { gameOver(); return; }
+            }
+        }
+
+        // Пули
+        for (let i=bullets.length-1; i>=0; i--) {
+            const b = bullets[i];
+            b.mesh.position.add(b.dir.clone().multiplyScalar(b.speed * 0.02));
+            b.life--;
+            let hit = false;
+
+            // Попадание в обычных врагов
+            for (let j=enemies.length-1; j>=0; j--) {
+                const e = enemies[j];
+                if (b.mesh.position.distanceTo(e.mesh.position) < 0.8) {
+                    scene.remove(e.mesh);
+                    enemies.splice(j, 1);
+                    kills++;
+                    killsSpan.textContent = kills;
+                    hit = true;
+                    break;
+                }
+            }
+
+            // Попадание в босса (исправлено)
+            if (!hit && boss && !bossDefeated) {
+                const distToBoss = b.mesh.position.distanceTo(boss.mesh.position);
+                if (distToBoss < 1.8) {
+                    boss.hp -= 1;
+                    hit = true;
+                    if (boss.hp <= 0) {
+                        // Убить босса
+                        scene.remove(boss.mesh);
+                        bossDefeated = true;
+                        boss = null;
+                        kills += 5;
+                        killsSpan.textContent = kills;
+                        alert('🎉 БОСС-ПАУК УБИТ! Вы спасли аэропорт!');
+                    } else {
+                        // Меняем цвет только если босс ещё жив
+                        if (boss && boss.mesh && boss.mesh.material && boss.mesh.material.color) {
+                            boss.mesh.material.color.setHex(0xff0000);
+                            setTimeout(() => {
+                                if (boss && boss.mesh && boss.mesh.material && boss.mesh.material.color) {
+                                    boss.mesh.material.color.setHex(0x4a0a5a);
+                                }
+                            }, 100);
+                        }
+                    }
+                }
+            }
+
+            if (hit || b.life <= 0) {
+                scene.remove(b.mesh);
+                bullets.splice(i, 1);
+            }
+        }
+
+        hpSpan.textContent = Math.round(player.hp);
+    }
+
+    function gameOver() {
+        gameRunning = false;
+        finalKillsSpan.textContent = kills;
+        gameoverDiv.style.display = 'block';
+        restartBtn.style.display = 'block';
+        document.exitPointerLock();
+    }
+
+    function restartGame() {
+        for (let e of enemies) scene.remove(e.mesh);
+        enemies = [];
+        if (boss) scene.remove(boss.mesh);
+        boss = null;
+        for (let b of bullets) scene.remove(b.mesh);
+        bullets = [];
+        player.hp = player.maxHp;
+        player.x = 0; player.z = 2;
+        player.rotationY = 0; player.rotationX = 0;
+        kills = 0;
+        gameTime = 0;
+        spawnTimer = 0;
+        difficulty = 1;
+        bossSpawned = false;
+        bossDefeated = false;
+        hpSpan.textContent = player.hp;
+        killsSpan.textContent = '0';
+        timeSpan.textContent = '0';
+        gameoverDiv.style.display = 'none';
+        restartBtn.style.display = 'none';
+        gameRunning = true;
+        setTimeout(() => { if (gameRunning) for(let i=0;i<3;i++) spawnEnemy(); }, 300);
+    }
+
+    restartBtn.addEventListener('click', restartGame);
+    document.addEventListener('keydown', (e) => {
+        if (e.key.toLowerCase() === 'r' && !gameRunning) restartGame();
+    });
+
+    // ---------- СТАРТ ----------
+    for (let i=0; i<3; i++) spawnEnemy();
+
+    function animate() {
+        if (gameRunning) update();
+        renderer.render(scene, camera);
+        requestAnimationFrame(animate);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    console.log('Все баги исправлены! Приятной игры!');
+</script>
+</body>
+</html>
