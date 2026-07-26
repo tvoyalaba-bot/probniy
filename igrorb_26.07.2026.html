@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Визуальная новелла – Школьная история</title>
+    <style>
+        /* ---------- ОБЩИЕ СТИЛИ ---------- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            background: #1a1a2e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Segoe UI', 'Arial', sans-serif;
+        }
+
+        #game {
+            position: relative;
+            width: 900px;
+            max-width: 100vw;
+            aspect-ratio: 16 / 9;
+            background: #16213e;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
+            cursor: pointer;
+        }
+
+        /* ---------- ФОН ---------- */
+        #bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #2c3e50;
+            background-size: cover;
+            background-position: center;
+            transition: background 0.8s ease;
+        }
+
+        /* ---------- ПЕРСОНАЖИ ---------- */
+        #characters {
+            position: absolute;
+            bottom: 30%;
+            left: 0;
+            width: 100%;
+            height: 70%;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            pointer-events: none;
+        }
+
+        #characters img {
+            position: absolute;
+            bottom: 0;
+            height: 90%;
+            max-height: 100%;
+            width: auto;
+            image-rendering: pixelated;
+            transition: opacity 0.5s ease, transform 0.5s ease;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        #characters img.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* позиции */
+        #char-left {
+            left: 5%;
+            transform-origin: bottom center;
+        }
+        #char-center {
+            left: 50%;
+            transform: translateX(-50%);
+            transform-origin: bottom center;
+        }
+        #char-right {
+            right: 5%;
+            transform-origin: bottom center;
+        }
+
+        /* ---------- ТЕКСТОВОЕ ПОЛЕ ---------- */
+        #textbox {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 30%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(4px);
+            border-top: 3px solid #e94560;
+            padding: 20px 30px 15px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            color: #eee;
+            box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.6);
+            pointer-events: auto;
+        }
+
+        #name {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: #e94560;
+            margin-bottom: 8px;
+            letter-spacing: 1px;
+            text-shadow: 0 0 10px rgba(233, 69, 96, 0.3);
+            min-height: 2.2rem;
+        }
+
+        #name .author {
+            color: #f1c40f;
+        }
+        #name .wallace {
+            color: #3498db;
+        }
+        #name .yerry {
+            color: #9b59b6;
+        }
+        #name .natsuki {
+            color: #e67e22;
+        }
+
+        #dialogue {
+            font-size: 1.2rem;
+            line-height: 1.6;
+            min-height: 4rem;
+            margin-bottom: 8px;
+            color: #f0f0f0;
+            text-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+        }
+
+        #dialogue .cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1.2rem;
+            background: #e94560;
+            margin-left: 2px;
+            animation: blink 0.8s infinite;
+            vertical-align: text-bottom;
+        }
+
+        @keyframes blink {
+            0%,
+            100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0;
+            }
+        }
+
+        /* ---------- КНОПКИ ВЫБОРА ---------- */
+        #choices {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 8px;
+            justify-content: center;
+        }
+
+        #choices button {
+            background: rgba(233, 69, 96, 0.2);
+            border: 2px solid #e94560;
+            color: #fff;
+            padding: 10px 24px;
+            border-radius: 30px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+            text-shadow: 0 0 6px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 0 15px rgba(233, 69, 96, 0.2);
+            flex: 1 0 auto;
+            max-width: 280px;
+        }
+
+        #choices button:hover {
+            background: #e94560;
+            transform: scale(1.04);
+            box-shadow: 0 0 25px rgba(233, 69, 96, 0.6);
+        }
+
+        #choices button:active {
+            transform: scale(0.96);
+        }
+
+        /* ---------- КНОПКА ПРОДОЛЖИТЬ ---------- */
+        #continue-btn {
+            position: absolute;
+            right: 30px;
+            bottom: 30px;
+            background: rgba(233, 69, 96, 0.3);
+            border: 2px solid #e94560;
+            color: #fff;
+            font-size: 2rem;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 0 20px rgba(233, 69, 96, 0.3);
+            pointer-events: auto;
+            opacity: 0;
+            transform: scale(0.8);
+        }
+
+        #continue-btn.visible {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        #continue-btn:hover {
+            background: #e94560;
+            box-shadow: 0 0 35px rgba(233, 69, 96, 0.7);
+            transform: scale(1.08);
+        }
+
+        /* ---------- ТИТУЛЬНЫЙ ЭКРАН ---------- */
+        #title-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, #1a1a2e, #0f0f1f);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            transition: opacity 0.8s ease;
+            pointer-events: auto;
+        }
+
+        #title-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #title-screen h1 {
+            font-size: 4rem;
+            color: #e94560;
+            text-shadow: 0 0 40px rgba(233, 69, 96, 0.5);
+            margin-bottom: 10px;
+            letter-spacing: 4px;
+        }
+
+        #title-screen h2 {
+            font-size: 1.8rem;
+            color: #f1c40f;
+            margin-bottom: 40px;
+            font-weight: 300;
+            letter-spacing: 6px;
+        }
+
+        #title-screen button {
+            background: rgba(233, 69, 96, 0.2);
+            border: 3px solid #e94560;
+            color: #fff;
+            padding: 18px 60px;
+            font-size: 1.8rem;
+            border-radius: 60px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            text-shadow: 0 0 20px rgba(233, 69, 96, 0.4);
+            box-shadow: 0 0 30px rgba(233, 69, 96, 0.2);
+            letter-spacing: 2px;
+        }
+
+        #title-screen button:hover {
+            background: #e94560;
+            transform: scale(1.06);
+            box-shadow: 0 0 60px rgba(233, 69, 96, 0.6);
+        }
+
+        /* ---------- АДАПТИВ ---------- */
+        @media (max-width: 700px) {
+            #textbox {
+                padding: 12px 16px 10px;
+                height: 35%;
+            }
+            #name {
+                font-size: 1.1rem;
+                min-height: 1.8rem;
+            }
+            #dialogue {
+                font-size: 1rem;
+                min-height: 3rem;
+            }
+            #choices button {
+                font-size: 0.95rem;
+                padding: 8px 16px;
+            }
+            #continue-btn {
+                width: 44px;
+                height: 44px;
+                font-size: 1.6rem;
+                right: 16px;
+                bottom: 16px;
+            }
+            #title-screen h1 {
+                font-size: 2.8rem;
+            }
+            #title-screen h2 {
+                font-size: 1.2rem;
+            }
+            #title-screen button {
+                font-size: 1.4rem;
+                padding: 14px 40px;
+            }
+            #characters {
+                bottom: 35%;
+                height: 60%;
+            }
+            #characters img {
+                height: 80%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game">
+        <!-- Фон -->
+        <div id="bg"></div>
+
+        <!-- Персонажи -->
+        <div id="characters">
+            <img id="char-left"   src="" alt="" style="display:none;" />
+            <img id="char-center" src="" alt="" style="display:none;" />
+            <img id="char-right"  src="" alt="" style="display:none;" />
+        </div>
+
+        <!-- Текстбокс -->
+        <div id="textbox">
+            <div id="name"></div>
+            <div id="dialogue"></div>
+            <div id="choices"></div>
+            <div id="continue-btn">▶</div>
+        </div>
+
+        <!-- Титульный экран -->
+        <div id="title-screen">
+            <h1>📖 Школьная история</h1>
+            <h2>Визуальная новелла</h2>
+            <button id="start-btn">Начать</button>
+        </div>
+    </div>
+
+    <script>
+        // ------------------------------------------------------------
+        //  СЦЕНАРИЙ (используются файлы: 1.png, 2l.png, 2r.png, a (2).png)
+        // ------------------------------------------------------------
+        //  a.png пока не задействован – при желании добавьте свою эмоцию
+        // ------------------------------------------------------------
+        const STEPS = [{
+            // 0
+            speaker: null,
+            text: 'Утро. Уоллес направляется в школу, размышляя о домашнем задании по литературе. Нужно было выучить стихотворение Пушкина.',
+            sprites: { left: null, center: null, right: null },
+            bg: 'road'
+        }, {
+            // 1
+            speaker: 'Йерри',
+            text: 'Привет, Уоллес! Ты готов к уроку литературы?',
+            sprites: { left: '1.png', center: null, right: null },
+            bg: 'road'
+        }, {
+            // 2
+            speaker: 'Уоллес',
+            text: 'Привет, Йерри. Да, я выучил. А ты как?',
+            sprites: { left: '1.png', center: null, right: null },
+            bg: 'road'
+        }, {
+            // 3
+            speaker: 'Йерри',
+            text: 'Я тоже выучила. Но мне кажется, я не до конца поняла смысл. О чём, по-твоему, это стихотворение?',
+            sprites: { left: '1.png', center: null, right: null },
+            bg: 'road',
+            choices: [
+                { text: 'О любви', next: 4 },
+                { text: 'О природе', next: 5 }
+            ]
+        }, {
+            // 4 – ветка "О любви"
+            speaker: 'Уоллес',
+            text: 'Мне кажется, оно о любви – о том, как человек готов пожертвовать всем ради любимого.',
+            sprites: { left: '1.png', center: null, right: null },
+            bg: 'road',
+            next: 6
+        }, {
+            // 5 – ветка "О природе"
+            speaker: 'Уоллес',
+            text: 'Я думаю, что стихотворение воспевает красоту природы и её влияние на душу человека.',
+            sprites: { left: '1.png', center: null, right: null },
+            bg: 'road',
+            next: 6
+        }, {
+            // 6 – объединение
+            speaker: 'Йерри',
+            text: 'Интересная мысль! Наверное, каждый видит в нём что-то своё. Пойдём скорее, а то опоздаем.',
+            sprites: { left: '1.png', center: null, right: null },
+            bg: 'road',
+            next: 7
+        }, {
+            // 7 – идут дальше, автор
+            speaker: null,
+            text: 'Друзья продолжили путь, обсуждая литературу. Вдруг они заметили впереди знакомую фигуру.',
+            sprites: { left: '1.png', center: null, right: null },
+            bg: 'road',
+            next: 8
+        }, {
+            // 8 – появляется Нацуки
+            speaker: 'Нацуки',
+            text: 'Ой, Уоллес? Йерри? Это вы?!',
+            sprites: { left: '1.png', center: null, right: '2r.png' },
+            bg: 'road',
+            next: 9
+        }, {
+            // 9
+            speaker: 'Уоллес',
+            text: 'Нацуки? Конечно, мы тебя помним. Что случилось? Ты выглядишь расстроенной.',
+            sprites: { left: '1.png', center: null, right: '2r.png' },
+            bg: 'road',
+            next: 10
+        }, {
+            // 10 – Нацуки расстроена (используем a (2).png)
+            speaker: 'Нацуки',
+            text: 'Я… я не выучила стихотворение! Совсем забыла про домашнее задание. Мне так стыдно…',
+            sprites: { left: '1.png', center: null, right: 'a (2).png' },
+            bg: 'road',
+            next: 11
+        }, {
+            // 11
+            speaker: 'Йерри',
+            text: 'Не переживай! Мы можем помочь тебе повторить по дороге. У нас ещё есть время.',
+            sprites: { left: '1.png', center: null, right: 'a (2).png' },
+            bg: 'road',
+            next: 12
+        }, {
+            // 12 – Нацуки обрадовалась (используем 2l.png)
+            speaker: 'Нацуки',
+            text: 'Правда? Спасибо вам большое! Вы настоящие друзья.',
+            sprites: { left: '1.png', center: null, right: '2l.png' },
+            bg: 'road',
+            next: 13
+        }, {
+            // 13 – финал
+            speaker: null,
+            text: 'И они втроём направились в школу, обсуждая стихи и смеясь. Впереди был новый учебный день, полный открытий.',
+            sprites: { left: '1.png', center: null, right: '2l.png' },
+            bg: 'school',
+            next: -1 // конец
+        }];
+
+        // ------------------------------------------------------------
+        //  СОСТОЯНИЕ ИГРЫ
+        // ------------------------------------------------------------
+        let currentStep = 0;
+        let isPrinting = false;
+        let printInterval = null;
+        let fullText = '';
+        let displayedText = '';
+        let choicesMade = false;
+
+        // DOM-элементы
+        const bgEl = document.getElementById('bg');
+        const charLeft = document.getElementById('char-left');
+        const charCenter = document.getElementById('char-center');
+        const charRight = document.getElementById('char-right');
+        const nameEl = document.getElementById('name');
+        const dialogueEl = document.getElementById('dialogue');
+        const choicesEl = document.getElementById('choices');
+        const continueBtn = document.getElementById('continue-btn');
+        const titleScreen = document.getElementById('title-screen');
+        const startBtn = document.getElementById('start-btn');
+
+        // Фоновые картинки (заглушки – можно заменить на реальные файлы)
+        const BG_MAP = {
+            road: 'linear-gradient(135deg, #2c3e50, #4ca1af)',
+            school: 'linear-gradient(135deg, #1e3c72, #2a5298)',
+        };
+
+        // ------------------------------------------------------------
+        //  ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+        // ------------------------------------------------------------
+        function setBackground(bgName) {
+            const bgStyle = BG_MAP[bgName] || '#2c3e50';
+            bgEl.style.background = bgStyle;
+        }
+
+        function setSprites(sprites) {
+            // left
+            if (sprites.left) {
+                charLeft.src = sprites.left;
+                charLeft.style.display = 'block';
+                charLeft.classList.add('visible');
+            } else {
+                charLeft.classList.remove('visible');
+                setTimeout(() => { charLeft.style.display = 'none'; }, 500);
+            }
+            // center
+            if (sprites.center) {
+                charCenter.src = sprites.center;
+                charCenter.style.display = 'block';
+                charCenter.classList.add('visible');
+            } else {
+                charCenter.classList.remove('visible');
+                setTimeout(() => { charCenter.style.display = 'none'; }, 500);
+            }
+            // right
+            if (sprites.right) {
+                charRight.src = sprites.right;
+                charRight.style.display = 'block';
+                charRight.classList.add('visible');
+            } else {
+                charRight.classList.remove('visible');
+                setTimeout(() => { charRight.style.display = 'none'; }, 500);
+            }
+        }
+
+        function clearChoices() {
+            choicesEl.innerHTML = '';
+            choicesEl.style.display = 'none';
+        }
+
+        function showChoices(choices) {
+            choicesEl.style.display = 'flex';
+            choices.forEach((choice, index) => {
+                const btn = document.createElement('button');
+                btn.textContent = choice.text;
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (isPrinting || choicesMade) return;
+                    choicesMade = true;
+                    goToStep(choice.next);
+                });
+                choicesEl.appendChild(btn);
+            });
+        }
+
+        function showContinue() {
+            continueBtn.classList.add('visible');
+        }
+
+        function hideContinue() {
+            continueBtn.classList.remove('visible');
+        }
+
+        // ------------------------------------------------------------
+        //  ПЕЧАТАНИЕ ТЕКСТА
+        // ------------------------------------------------------------
+        function typeText(text, callback) {
+            fullText = text;
+            displayedText = '';
+            dialogueEl.innerHTML = '';
+            isPrinting = true;
+            hideContinue();
+            clearChoices();
+
+            let index = 0;
+            const speed = 30;
+
+            if (printInterval) clearInterval(printInterval);
+
+            printInterval = setInterval(() => {
+                if (index < fullText.length) {
+                    displayedText += fullText.charAt(index);
+                    dialogueEl.innerHTML = displayedText + '<span class="cursor"></span>';
+                    index++;
+                } else {
+                    clearInterval(printInterval);
+                    printInterval = null;
+                    isPrinting = false;
+                    dialogueEl.innerHTML = displayedText;
+                    if (callback) callback();
+                }
+            }, speed);
+        }
+
+        // ------------------------------------------------------------
+        //  ПЕРЕХОД К ШАГУ
+        // ------------------------------------------------------------
+        function goToStep(stepIndex) {
+            if (stepIndex < 0 || stepIndex >= STEPS.length) {
+                endGame();
+                return;
+            }
+
+            currentStep = stepIndex;
+            const step = STEPS[stepIndex];
+
+            setBackground(step.bg || 'road');
+            setSprites(step.sprites || { left: null, center: null, right: null });
+
+            const speaker = step.speaker;
+            nameEl.innerHTML = '';
+            if (speaker) {
+                const span = document.createElement('span');
+                span.textContent = speaker;
+                if (speaker === 'Автор') span.className = 'author';
+                else if (speaker === 'Уоллес') span.className = 'wallace';
+                else if (speaker === 'Йерри') span.className = 'yerry';
+                else if (speaker === 'Нацуки') span.className = 'natsuki';
+                nameEl.appendChild(span);
+            }
+
+            clearChoices();
+            choicesMade = false;
+
+            const text = step.text || '…';
+            typeText(text, () => {
+                if (step.choices && step.choices.length > 0) {
+                    showChoices(step.choices);
+                } else {
+                    showContinue();
+                    const nextIdx = (step.next !== undefined) ? step.next : currentStep + 1;
+                    continueBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        if (isPrinting || choicesMade) return;
+                        choicesMade = true;
+                        goToStep(nextIdx);
+                    };
+                }
+            });
+        }
+
+        // ------------------------------------------------------------
+        //  ЗАВЕРШЕНИЕ ИГРЫ
+        // ------------------------------------------------------------
+        function endGame() {
+            dialogueEl.innerHTML = '❤️ Спасибо за игру! ❤️';
+            nameEl.innerHTML = '';
+            hideContinue();
+            clearChoices();
+            const restartBtn = document.createElement('button');
+            restartBtn.textContent = 'Начать заново';
+            restartBtn.style.cssText = `
+                background: rgba(233,69,96,0.2);
+                border: 2px solid #e94560;
+                color: #fff;
+                padding: 12px 30px;
+                border-radius: 40px;
+                font-size: 1.2rem;
+                cursor: pointer;
+                margin-top: 20px;
+                transition: all 0.2s;
+            `;
+            restartBtn.onmouseover = () => { restartBtn.style.background = '#e94560'; };
+            restartBtn.onmouseout = () => { restartBtn.style.background = 'rgba(233,69,96,0.2)'; };
+            restartBtn.onclick = () => {
+                location.reload();
+            };
+            choicesEl.style.display = 'flex';
+            choicesEl.appendChild(restartBtn);
+        }
+
+        // ------------------------------------------------------------
+        //  ОБРАБОТЧИК КЛИКА ПО ТЕКСТБОКСУ (пропуск печати)
+        // ------------------------------------------------------------
+        document.getElementById('textbox').addEventListener('click', (e) => {
+            if (isPrinting) {
+                clearInterval(printInterval);
+                printInterval = null;
+                isPrinting = false;
+                dialogueEl.innerHTML = fullText;
+                const step = STEPS[currentStep];
+                if (step.choices && step.choices.length > 0) {
+                    showChoices(step.choices);
+                } else {
+                    showContinue();
+                }
+                return;
+            }
+        });
+
+        // ------------------------------------------------------------
+        //  СТАРТ ИГРЫ
+        // ------------------------------------------------------------
+        startBtn.addEventListener('click', () => {
+            titleScreen.classList.add('hidden');
+            setTimeout(() => {
+                titleScreen.style.display = 'none';
+            }, 800);
+            goToStep(0);
+        });
+
+        console.log('Игра загружена! Используются спрайты: 1.png, 2l.png, 2r.png, a (2).png');
+    </script>
+
+</body>
+</html>

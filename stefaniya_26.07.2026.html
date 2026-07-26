@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🐕 Два белых пса — Корми и играй</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(145deg, #1a3a1a 0%, #2d5a2d 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            user-select: none;
+        }
+
+        .game-wrapper {
+            background: #3d2b1f;
+            padding: 20px 30px 30px;
+            border-radius: 60px 60px 40px 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7), inset 0 2px 4px rgba(255, 255, 200, 0.2);
+            border: 4px solid #5a3d2b;
+        }
+
+        .game-container {
+            position: relative;
+            border-radius: 32px;
+            overflow: hidden;
+            box-shadow: inset 0 0 0 4px #6b4c34, 0 10px 30px rgba(0, 0, 0, 0.5);
+            background: #87CEEB;
+            cursor: crosshair;
+        }
+
+        canvas {
+            display: block;
+            width: 800px;
+            height: 500px;
+            background: transparent;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 10px 14px 10px;
+            color: #f5e6d3;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .title {
+            font-size: 26px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #fff8e7, #f5d6b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .title span {
+            font-size: 28px;
+            -webkit-text-fill-color: initial;
+            color: #f5e6d3;
+        }
+
+        .scoreboard {
+            display: flex;
+            gap: 20px;
+            background: rgba(0, 0, 0, 0.35);
+            padding: 6px 20px;
+            border-radius: 40px;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 200, 0.15);
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .score-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .score-item .dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            flex-shrink: 0;
+        }
+
+        .score-item .dot.red {
+            background: #ff4757;
+        }
+        .score-item .dot.blue {
+            background: #3742fa;
+        }
+
+        .score-item .num {
+            font-size: 20px;
+            font-weight: 800;
+            min-width: 24px;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0 6px;
+            border-radius: 12px;
+        }
+
+        .score-item .food-icon {
+            font-size: 18px;
+            margin-left: 4px;
+        }
+
+        .btn-reset {
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+            padding: 5px 16px;
+            border-radius: 30px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            backdrop-filter: blur(4px);
+            font-family: inherit;
+        }
+
+        .btn-reset:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: scale(1.04);
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .btn-reset:active {
+            transform: scale(0.94);
+        }
+
+        .footer-tip {
+            text-align: center;
+            padding-top: 12px;
+            color: #c4a88a;
+            font-size: 15px;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+        }
+
+        .footer-tip span {
+            display: inline-block;
+            animation: pulse-tip 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-tip {
+            0%,
+            100% {
+                opacity: 0.7;
+            }
+            50% {
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 860px) {
+            .game-wrapper {
+                padding: 14px 16px 20px;
+                border-radius: 40px 40px 28px 28px;
+            }
+            canvas {
+                width: 100%;
+                height: auto;
+                aspect-ratio: 800/500;
+            }
+            .title {
+                font-size: 18px;
+            }
+            .scoreboard {
+                gap: 12px;
+                padding: 4px 12px;
+            }
+            .score-item {
+                font-size: 14px;
+            }
+            .score-item .num {
+                font-size: 16px;
+                min-width: 20px;
+            }
+            .btn-reset {
+                font-size: 13px;
+                padding: 4px 12px;
+            }
+            .footer-tip {
+                font-size: 13px;
+            }
+        }
+
+        @media (max-width: 500px) {
+            .game-wrapper {
+                padding: 8px 10px 14px;
+                border-radius: 28px 28px 20px 20px;
+            }
+            .title {
+                font-size: 15px;
+            }
+            .score-item {
+                font-size: 12px;
+                gap: 4px;
+            }
+            .score-item .dot {
+                width: 12px;
+                height: 12px;
+            }
+            .score-item .num {
+                font-size: 14px;
+                min-width: 18px;
+            }
+            .btn-reset {
+                font-size: 11px;
+                padding: 3px 10px;
+            }
+            .footer-tip {
+                font-size: 11px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-wrapper">
+        <div class="header">
+            <div class="title"><span>🐕</span> Два белых пса</div>
+            <div class="scoreboard">
+                <div class="score-item">
+                    <span class="dot red"></span>
+                    <span>Снежок</span>
+                    <span class="num" id="scoreRed">0</span>
+                    <span class="food-icon">🍖</span>
+                    <span class="num" id="foodRed">0</span>
+                </div>
+                <div class="score-item">
+                    <span class="dot blue"></span>
+                    <span>Облачко</span>
+                    <span class="num" id="scoreBlue">0</span>
+                    <span class="food-icon">🍖</span>
+                    <span class="num" id="foodBlue">0</span>
+                </div>
+                <button class="btn-reset" id="resetBtn">⟳ Сброс</button>
+            </div>
+        </div>
+
+        <div class="game-container">
+            <canvas id="gameCanvas" width="800" height="500"></canvas>
+        </div>
+
+        <div class="footer-tip">
+            <span>🖱️ Клик по собаке — покормить, по полю — кинуть мяч!</span>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        //   ИГРА: Два белых пса + КОРМЛЕНИЕ
+        // ============================================================
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreRedEl = document.getElementById('scoreRed');
+        const scoreBlueEl = document.getElementById('scoreBlue');
+        const foodRedEl = document.getElementById('foodRed');
+        const foodBlueEl = document.getElementById('foodBlue');
+        const resetBtn = document.getElementById('resetBtn');
+
+        const W = 800,
+            H = 500;
+
+        // ---------- Состояние игры ----------
+        const state = {
+            dogs: [],
+            ball: { x: 0, y: 0, radius: 12, active: false, targetX: 0, targetY: 0 },
+            scoreRed: 0,
+            scoreBlue: 0,
+            foodRed: 0,
+            foodBlue: 0,
+            phase: 'idle', // idle | throwing | racing | celebrating | eating
+            phaseTimer: 0,
+            winner: null,
+            time: 0,
+            message: '',
+            messageTimer: 0,
+        };
+
+        // ---------- Инициализация собак ----------
+        function createDog(id, name, color, x, y) {
+            return {
+                id: id,
+                name: name,
+                collarColor: color,
+                x: x,
+                y: y,
+                targetX: x,
+                targetY: y,
+                speed: 0,
+                maxSpeed: 2.8 + Math.random() * 0.6,
+                radius: 28,
+                tailWag: 0,
+                legPhase: 0,
+                facing: 1,
+                currentFacing: 1,
+                isHappy: false,
+                happyTimer: 0,
+                isRunning: false,
+                // Для еды
+                isEating: false,
+                eatTimer: 0,
+                foodCount: 0,
+            };
+        }
+
+        function initDogs() {
+            state.dogs = [
+                createDog('red', 'Снежок', '#ff4757', 150, 280),
+                createDog('blue', 'Облачко', '#3742fa', 650, 280),
+            ];
+            state.dogs[0].y = 270 + Math.random() * 40 - 20;
+            state.dogs[1].y = 270 + Math.random() * 40 - 20;
+            state.dogs[0].radius = 26 + Math.random() * 4;
+            state.dogs[1].radius = 26 + Math.random() * 4;
+            // Обновим счётчики еды из состояния
+            state.dogs[0].foodCount = state.foodRed;
+            state.dogs[1].foodCount = state.foodBlue;
+        }
+
+        // ---------- Сброс ----------
+        function resetGame() {
+            state.scoreRed = 0;
+            state.scoreBlue = 0;
+            state.foodRed = 0;
+            state.foodBlue = 0;
+            state.phase = 'idle';
+            state.winner = null;
+            state.message = '';
+            state.messageTimer = 0;
+            state.ball.active = false;
+            updateScoreDisplay();
+            initDogs();
+            state.dogs[0].x = 150 + Math.random() * 30 - 15;
+            state.dogs[0].y = 230 + Math.random() * 80;
+            state.dogs[1].x = 650 + Math.random() * 30 - 15;
+            state.dogs[1].y = 230 + Math.random() * 80;
+            state.dogs[0].targetX = state.dogs[0].x;
+            state.dogs[0].targetY = state.dogs[0].y;
+            state.dogs[1].targetX = state.dogs[1].x;
+            state.dogs[1].targetY = state.dogs[1].y;
+            state.dogs[0].isRunning = false;
+            state.dogs[1].isRunning = false;
+            state.dogs[0].isEating = false;
+            state.dogs[1].isEating = false;
+            state.dogs[0].eatTimer = 0;
+            state.dogs[1].eatTimer = 0;
+        }
+
+        function updateScoreDisplay() {
+            scoreRedEl.textContent = state.scoreRed;
+            scoreBlueEl.textContent = state.scoreBlue;
+            foodRedEl.textContent = state.foodRed;
+            foodBlueEl.textContent = state.foodBlue;
+        }
+
+        // ---------- Кормление ----------
+        function feedDog(dogId) {
+            const dog = state.dogs.find(d => d.id === dogId);
+            if (!dog) return;
+            // Нельзя кормить во время гонки или броска, но можно в idle и celebrating
+            if (state.phase === 'racing' || state.phase === 'throwing') return;
+            if (dog.isEating) return; // уже ест
+
+            dog.isEating = true;
+            dog.eatTimer = 0;
+            // Увеличиваем счётчик еды
+            if (dogId === 'red') {
+                state.foodRed++;
+                dog.foodCount = state.foodRed;
+            } else {
+                state.foodBlue++;
+                dog.foodCount = state.foodBlue;
+            }
+            updateScoreDisplay();
+            // Показываем сообщение
+            state.message = `🍖 ${dog.name} кушает! +1`;
+            state.messageTimer = 80;
+            // Сделаем собаку счастливой (но после еды)
+            dog.isHappy = true;
+            dog.happyTimer = 0;
+            // Если был мяч, убираем
+            state.ball.active = false;
+            // Переводим фазу в idle, если была celebrating
+            if (state.phase === 'celebrating') {
+                state.phase = 'idle';
+            }
+            // Останавливаем бег
+            dog.isRunning = false;
+            dog.speed = 0;
+        }
+
+        // ---------- Бросок мяча ----------
+        function throwBall(targetX, targetY) {
+            if (state.phase !== 'idle') return;
+            // Проверяем, не попали ли в собаку (кормление)
+            for (const dog of state.dogs) {
+                const dx = targetX - dog.x;
+                const dy = targetY - dog.y;
+                if (Math.hypot(dx, dy) < dog.radius + 10) {
+                    feedDog(dog.id);
+                    return;
+                }
+            }
+            // Иначе бросаем мяч
+            const cx = Math.min(Math.max(targetX, 40), W - 40);
+            const cy = Math.min(Math.max(targetY, 80), H - 40);
+            state.ball.targetX = cx;
+            state.ball.targetY = cy;
+            state.ball.x = cx;
+            state.ball.y = 30;
+            state.ball.active = true;
+            state.phase = 'throwing';
+            state.phaseTimer = 0;
+            state.winner = null;
+            state.dogs.forEach(d => { d.isHappy = false;
+                d.happyTimer = 0;
+                d.isEating = false; });
+        }
+
+        // ---------- Запуск гонки ----------
+        function startRace() {
+            state.phase = 'racing';
+            state.phaseTimer = 0;
+            state.dogs.forEach(d => {
+                d.targetX = state.ball.x;
+                d.targetY = state.ball.y;
+                d.isRunning = true;
+                d.speed = d.maxSpeed * (0.85 + Math.random() * 0.3);
+            });
+        }
+
+        function finishRound(winnerId) {
+            state.phase = 'celebrating';
+            state.phaseTimer = 0;
+            state.winner = winnerId;
+            const winnerDog = state.dogs.find(d => d.id === winnerId);
+            if (winnerDog) {
+                winnerDog.isHappy = true;
+                winnerDog.happyTimer = 0;
+                if (winnerId === 'red') {
+                    state.scoreRed++;
+                    state.message = '🎉 Снежок поймал мяч! +1';
+                } else {
+                    state.scoreBlue++;
+                    state.message = '🎉 Облачко поймал мяч! +1';
+                }
+                state.messageTimer = 120;
+                updateScoreDisplay();
+            }
+            state.dogs.forEach(d => { d.isRunning = false;
+                d.speed = 0; });
+        }
+
+        // ---------- Обновление ----------
+        function update() {
+            state.time++;
+            if (state.messageTimer > 0) {
+                state.messageTimer--;
+                if (state.messageTimer === 0) state.message = '';
+            }
+
+            // Обработка еды
+            for (const dog of state.dogs) {
+                if (dog.isEating) {
+                    dog.eatTimer++;
+                    dog.tailWag += 0.2;
+                    if (dog.eatTimer > 80) {
+                        dog.isEating = false;
+                        dog.eatTimer = 0;
+                        // Собака остаётся счастливой ещё немного
+                        dog.isHappy = true;
+                        dog.happyTimer = 0;
+                    }
+                }
+                if (dog.isHappy && !dog.isEating) {
+                    dog.happyTimer++;
+                    if (dog.happyTimer > 120) {
+                        dog.isHappy = false;
+                        dog.happyTimer = 0;
+                    }
+                }
+            }
+
+            // --- Фазы игры ---
+            if (state.phase === 'throwing') {
+                state.phaseTimer++;
+                const progress = Math.min(state.phaseTimer / 30, 1);
+                const ease = 1 - Math.pow(1 - progress, 3);
+                state.ball.y = 30 + (state.ball.targetY - 30) * ease;
+                state.ball.x = state.ball.targetX + Math.sin(state.phaseTimer * 0.15) * 2;
+                if (progress >= 1) {
+                    state.ball.y = state.ball.targetY;
+                    startRace();
+                }
+                return;
+            }
+
+            if (state.phase === 'racing') {
+                state.phaseTimer++;
+                let anyMoving = false;
+                let winnerFound = null;
+                for (const dog of state.dogs) {
+                    if (!dog.isRunning) continue;
+                    const dx = state.ball.x - dog.x;
+                    const dy = state.ball.y - dog.y;
+                    const dist = Math.hypot(dx, dy);
+                    if (dist < 6) {
+                        dog.x = state.ball.x;
+                        dog.y = state.ball.y;
+                        dog.isRunning = false;
+                        dog.speed = 0;
+                        if (!winnerFound) winnerFound = dog.id;
+                        continue;
+                    }
+                    anyMoving = true;
+                    const speed = dog.speed;
+                    const step = Math.min(speed, dist);
+                    const angle = Math.atan2(dy, dx);
+                    dog.x += Math.cos(angle) * step;
+                    dog.y += Math.sin(angle) * step;
+                    dog.facing = Math.cos(angle) > 0 ? 1 : -1;
+                    dog.currentFacing = dog.facing;
+                    dog.legPhase += speed * 0.08;
+                    dog.tailWag += 0.08;
+                }
+                if (winnerFound) {
+                    finishRound(winnerFound);
+                    return;
+                }
+                if (!anyMoving && state.phaseTimer > 20) {
+                    const d0 = Math.hypot(state.dogs[0].x - state.ball.x, state.dogs[0].y - state.ball.y);
+                    const d1 = Math.hypot(state.dogs[1].x - state.ball.x, state.dogs[1].y - state.ball.y);
+                    if (d0 < 10 && d1 < 10) {
+                        if (d0 < d1) finishRound('red');
+                        else if (d1 < d0) finishRound('blue');
+                        else finishRound(Math.random() < 0.5 ? 'red' : 'blue');
+                        return;
+                    }
+                    for (const dog of state.dogs) {
+                        if (!dog.isRunning) continue;
+                        const d = Math.hypot(dog.x - state.ball.x, dog.y - state.ball.y);
+                        if (d < 20) {
+                            dog.x = state.ball.x;
+                            dog.y = state.ball.y;
+                            dog.isRunning = false;
+                            dog.speed = 0;
+                            finishRound(dog.id);
+                            return;
+                        }
+                    }
+                }
+                if (state.phaseTimer > 300) {
+                    const d0 = Math.hypot(state.dogs[0].x - state.ball.x, state.dogs[0].y - state.ball.y);
+                    const d1 = Math.hypot(state.dogs[1].x - state.ball.x, state.dogs[1].y - state.ball.y);
+                    if (d0 < d1) finishRound('red');
+                    else if (d1 < d0) finishRound('blue');
+                    else finishRound(Math.random() < 0.5 ? 'red' : 'blue');
+                    return;
+                }
+                return;
+            }
+
+            if (state.phase === 'celebrating') {
+                state.phaseTimer++;
+                for (const dog of state.dogs) {
+                    if (!dog.isRunning) {
+                        dog.x += (dog.targetX - dog.x) * 0.005;
+                        dog.y += (dog.targetY - dog.y) * 0.005;
+                    }
+                    dog.tailWag += 0.06;
+                }
+                if (state.phaseTimer > 120) {
+                    state.phase = 'idle';
+                    state.ball.active = false;
+                    state.winner = null;
+                    for (const dog of state.dogs) {
+                        dog.isHappy = false;
+                        dog.happyTimer = 0;
+                        dog.targetX = dog.x;
+                        dog.targetY = dog.y;
+                        dog.targetX += (Math.random() - 0.5) * 60;
+                        dog.targetY += (Math.random() - 0.5) * 40;
+                        dog.targetX = Math.min(Math.max(dog.targetX, 40), W - 40);
+                        dog.targetY = Math.min(Math.max(dog.targetY, 80), H - 40);
+                    }
+                }
+                return;
+            }
+
+            // IDLE
+            if (state.phase === 'idle') {
+                for (const dog of state.dogs) {
+                    if (dog.isEating) continue; // ест, не двигается
+                    const dx = dog.targetX - dog.x;
+                    const dy = dog.targetY - dog.y;
+                    const dist = Math.hypot(dx, dy);
+                    if (dist > 2) {
+                        const speed = 0.3 + Math.sin(state.time * 0.001 + (dog.id === 'red' ? 0 : 2)) * 0.15;
+                        const step = Math.min(speed, dist);
+                        const angle = Math.atan2(dy, dx);
+                        dog.x += Math.cos(angle) * step;
+                        dog.y += Math.sin(angle) * step;
+                        dog.facing = Math.cos(angle) > 0 ? 1 : -1;
+                        dog.currentFacing = dog.facing;
+                        dog.legPhase += speed * 0.06;
+                    } else {
+                        dog.targetX = 80 + Math.random() * (W - 160);
+                        dog.targetY = 100 + Math.random() * (H - 200);
+                        dog.facing = Math.random() < 0.5 ? 1 : -1;
+                        dog.currentFacing = dog.facing;
+                    }
+                    dog.tailWag += 0.04 + Math.sin(state.time * 0.003 + (dog.id === 'red' ? 0 : 1.5)) * 0.02;
+                }
+                state.ball.active = false;
+            }
+        }
+
+        // ============================================================
+        //   ОТРИСОВКА (добавлена миска для еды)
+        // ============================================================
+
+        function drawDog(dog) {
+            const { x, y, collarColor, radius, currentFacing, legPhase, tailWag, isHappy, id, isEating, eatTimer } = dog;
+            const r = radius;
+            ctx.save();
+            ctx.translate(x, y);
+            const dir = currentFacing || 1;
+            ctx.scale(dir, 1);
+
+            // ---- Тени ----
+            ctx.shadowColor = 'rgba(0,0,0,0.12)';
+            ctx.shadowBlur = 12;
+            ctx.shadowOffsetY = 4;
+
+            // ---- Тело ----
+            ctx.shadowColor = 'rgba(0,0,0,0.08)';
+            ctx.shadowBlur = 10;
+            ctx.shadowOffsetY = 3;
+            ctx.beginPath();
+            ctx.ellipse(0, 2, r * 0.9, r * 0.7, 0, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+            ctx.strokeStyle = '#e0ddd5';
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+
+            // ---- Голова ----
+            const headX = r * 0.65;
+            const headY = -r * 0.15;
+            // Если ест, наклоняем голову вниз
+            const eatOffsetX = isEating ? 0.08 : 0;
+            const eatOffsetY = isEating ? 0.12 : 0;
+            ctx.beginPath();
+            ctx.ellipse(headX + eatOffsetX * r, headY + eatOffsetY * r, r * 0.6, r * 0.55, 0, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+            ctx.strokeStyle = '#e0ddd5';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // ---- Уши ----
+            ctx.shadowBlur = 6;
+            ctx.shadowOffsetY = 2;
+            ctx.beginPath();
+            ctx.ellipse(headX - r * 0.35 + eatOffsetX * r * 0.5, headY - r * 0.5 + eatOffsetY * r * 0.3, r * 0.22, r * 0.45, -
+                0.25, 0, Math.PI * 2);
+            ctx.fillStyle = '#f5f2ec';
+            ctx.fill();
+            ctx.strokeStyle = '#d8d4cc';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.ellipse(headX + r * 0.35 + eatOffsetX * r * 0.5, headY - r * 0.5 + eatOffsetY * r * 0.3, r * 0.22, r * 0.45,
+                0.25, 0, Math.PI * 2);
+            ctx.fillStyle = '#f5f2ec';
+            ctx.fill();
+            ctx.stroke();
+
+            // ---- Глаза ----
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetY = 0;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.ellipse(headX - r * 0.22 + eatOffsetX * r * 0.2, headY - r * 0.05 + eatOffsetY * r * 0.2, r * 0.16, r * 0.18,
+                0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(headX + r * 0.22 + eatOffsetX * r * 0.2, headY - r * 0.05 + eatOffsetY * r * 0.2, r * 0.16, r * 0.18,
+                0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#2d2a24';
+            const eyeOff = isHappy ? -0.04 : 0;
+            ctx.beginPath();
+            ctx.arc(headX - r * 0.18 + r * 0.04 + eatOffsetX * r * 0.1, headY + eyeOff * r * 0.6 + eatOffsetY * r * 0.1, r *
+                0.09, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(headX + r * 0.26 + r * 0.04 + eatOffsetX * r * 0.1, headY + eyeOff * r * 0.6 + eatOffsetY * r * 0.1, r *
+                0.09, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = 'rgba(255,255,255,0.85)';
+            ctx.beginPath();
+            ctx.arc(headX - r * 0.15 + r * 0.06 + eatOffsetX * r * 0.1, headY - r * 0.12 + eatOffsetY * r * 0.1, r * 0.045,
+                0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(headX + r * 0.29 + r * 0.06 + eatOffsetX * r * 0.1, headY - r * 0.12 + eatOffsetY * r * 0.1, r * 0.045,
+                0, Math.PI * 2);
+            ctx.fill();
+
+            // ---- Нос ----
+            ctx.fillStyle = '#2d2a24';
+            ctx.shadowBlur = 4;
+            ctx.shadowColor = 'rgba(0,0,0,0.1)';
+            ctx.shadowOffsetY = 1;
+            ctx.beginPath();
+            ctx.ellipse(headX + r * 0.5 + eatOffsetX * r * 0.2, headY + r * 0.06 + eatOffsetY * r * 0.2, r * 0.1, r * 0.075,
+                0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'rgba(255,255,255,0.25)';
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.ellipse(headX + r * 0.52 + eatOffsetX * r * 0.2, headY + r * 0.02 + eatOffsetY * r * 0.2, r * 0.04, r *
+                0.03, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // ---- Рот ----
+            ctx.strokeStyle = '#4a3f35';
+            ctx.lineWidth = 1.2;
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            if (isEating) {
+                // Жуёт — рисуем открытый рот
+                ctx.arc(headX + r * 0.42 + eatOffsetX * r * 0.2, headY + r * 0.2 + eatOffsetY * r * 0.3, r * 0.12, 0.1, Math
+                    .PI - 0.1);
+                // Язык
+                ctx.fillStyle = '#f28b82';
+                ctx.beginPath();
+                ctx.ellipse(headX + r * 0.45 + eatOffsetX * r * 0.2, headY + r * 0.28 + eatOffsetY * r * 0.3, r * 0.06, r *
+                    0.04, 0, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (isHappy) {
+                ctx.arc(headX + r * 0.42, headY + r * 0.16, r * 0.16, 0.1, Math.PI - 0.1);
+            } else {
+                ctx.arc(headX + r * 0.42, headY + r * 0.1, r * 0.1, 0.15, Math.PI - 0.15);
+            }
+            ctx.stroke();
+
+            // ---- Ошейник ----
+            ctx.shadowBlur = 6;
+            ctx.shadowColor = 'rgba(0,0,0,0.08)';
+            ctx.shadowOffsetY = 2;
+            ctx.fillStyle = collarColor;
+            ctx.beginPath();
+            ctx.ellipse(r * 0.15, r * 0.12, r * 0.2, r * 0.14, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#f5e6c8';
+            ctx.shadowBlur = 4;
+            ctx.shadowOffsetY = 1;
+            ctx.beginPath();
+            ctx.arc(r * 0.15, r * 0.12, r * 0.07, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#c4a88a';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // ---- Хвост ----
+            ctx.shadowBlur = 6;
+            ctx.shadowColor = 'rgba(0,0,0,0.06)';
+            ctx.shadowOffsetY = 2;
+            const tailLen = r * 0.85;
+            const tailX = -r * 0.75;
+            const tailY = -r * 0.1;
+            ctx.beginPath();
+            ctx.moveTo(tailX, tailY);
+            const cpx = tailX - r * 0.3 + Math.sin(tailWag * 0.7) * r * 0.2;
+            const cpy = tailY - tailLen * 0.6 + Math.cos(tailWag * 0.5) * r * 0.15;
+            const endX = tailX - r * 0.1 + Math.sin(tailWag * 0.8) * r * 0.3;
+            const endY = tailY - tailLen + Math.cos(tailWag * 0.6) * r * 0.2;
+            ctx.quadraticCurveTo(cpx, cpy, endX, endY);
+            ctx.strokeStyle = '#f0ede7';
+            ctx.lineWidth = r * 0.2;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+            ctx.strokeStyle = '#e5e0d8';
+            ctx.lineWidth = r * 0.12;
+            ctx.beginPath();
+            ctx.moveTo(endX - r * 0.05, endY - r * 0.02);
+            ctx.quadraticCurveTo(endX + r * 0.1, endY - r * 0.15, endX + r * 0.08, endY - r * 0.25);
+            ctx.stroke();
+
+            // ---- Ноги ----
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = 'rgba(0,0,0,0.08)';
+            ctx.shadowOffsetY = 3;
+            const legLen = r * 0.5;
+            const legW = r * 0.12;
+            const legOffset = r * 0.3;
+            const phase = legPhase || 0;
+            for (let i = 0; i < 4; i++) {
+                const offsetX = (i % 2 === 0 ? -legOffset * 0.6 : legOffset * 0.6) * (i < 2 ? 0.9 : 0.9);
+                const offsetY = (i < 2 ? -0.15 : 0.15) * r;
+                const lift = dog.isRunning ? Math.sin(phase + i * 1.2) * r * 0.1 : 0;
+                ctx.fillStyle = '#f5f2ec';
+                ctx.strokeStyle = '#d8d4cc';
+                ctx.lineWidth = 0.8;
+                ctx.beginPath();
+                const lx = offsetX + (i < 2 ? -r * 0.3 : r * 0.3);
+                const ly = r * 0.45 + offsetY + lift * 0.5;
+                ctx.roundRect(lx - legW / 2, ly, legW, legLen + lift * 0.3, 3);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = '#ede8e0';
+                ctx.beginPath();
+                ctx.ellipse(lx, ly + legLen + lift * 0.3 + 2, legW * 0.8, 4, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // ---- Миска с едой (если ест) ----
+            if (isEating) {
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = 'rgba(0,0,0,0.1)';
+                ctx.shadowOffsetY = 2;
+                const bowlX = r * 0.8;
+                const bowlY = r * 0.55;
+                // Миска
+                ctx.fillStyle = '#b08d6b';
+                ctx.beginPath();
+                ctx.ellipse(bowlX, bowlY, r * 0.25, r * 0.12, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#8b6b4d';
+                ctx.beginPath();
+                ctx.ellipse(bowlX, bowlY + r * 0.03, r * 0.2, r * 0.08, 0, 0, Math.PI * 2);
+                ctx.fill();
+                // Еда (кусочки)
+                ctx.fillStyle = '#d4a373';
+                for (let i = 0; i < 3; i++) {
+                    const angle = state.time * 0.02 + i * 2.1;
+                    const dist = r * 0.08;
+                    ctx.beginPath();
+                    ctx.arc(bowlX + Math.cos(angle) * dist, bowlY + Math.sin(angle) * dist * 0.4 + r * 0.02, r * 0.04, 0, Math
+                        .PI * 2);
+                    ctx.fill();
+                }
+                ctx.fillStyle = '#e6b88a';
+                ctx.beginPath();
+                ctx.arc(bowlX + r * 0.02, bowlY - r * 0.02, r * 0.035, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // ---- Имя и счётчик еды ----
+            ctx.shadowBlur = 6;
+            ctx.shadowColor = 'rgba(0,0,0,0.2)';
+            ctx.shadowOffsetY = 1;
+            ctx.fillStyle = 'rgba(255,255,255,0.7)';
+            ctx.font = `bold ${Math.round(r * 0.45)}px 'Segoe UI', Arial, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            const nameLine = `${dog.name} 🍖${dog.foodCount}`;
+            ctx.fillText(nameLine, 0, -r * 0.9 - 6);
+
+            // ---- Звёздочки счастья ----
+            if (isHappy) {
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = 'rgba(255,215,0,0.4)';
+                for (let i = 0; i < 6; i++) {
+                    const angle = state.time * 0.05 + i * 1.2;
+                    const dist = r * 0.6 + Math.sin(state.time * 0.06 + i) * r * 0.2;
+                    const sx = Math.cos(angle) * dist;
+                    const sy = -r * 0.5 + Math.sin(angle * 0.7) * dist * 0.3 - r * 0.2;
+                    ctx.fillStyle = `hsla(${45 + i * 15}, 100%, 70%, ${0.5 + Math.sin(state.time * 0.05 + i) * 0.3})`;
+                    ctx.font = `${r * 0.35}px sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('✦', sx, sy);
+                }
+            }
+
+            ctx.restore();
+        }
+
+        // ---------- Фон, мяч, сообщения (без изменений) ----------
+        function drawBackground() {
+            const grad = ctx.createLinearGradient(0, 0, 0, H);
+            grad.addColorStop(0, '#6ec6ff');
+            grad.addColorStop(0.6, '#b5dffa');
+            grad.addColorStop(1, '#c9e8f5');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+            ctx.shadowBlur = 50;
+            ctx.shadowColor = 'rgba(255,230,120,0.3)';
+            ctx.beginPath();
+            ctx.arc(700, 60, 48, 0, Math.PI * 2);
+            ctx.fillStyle = '#fffbe6';
+            ctx.fill();
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = 'rgba(255,210,80,0.2)';
+            ctx.beginPath();
+            ctx.arc(700, 60, 38, 0, Math.PI * 2);
+            ctx.fillStyle = '#fff5b0';
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            drawCloud(120, 55, 0.8);
+            drawCloud(380, 35, 1);
+            drawCloud(580, 70, 0.7);
+            const grassGrad = ctx.createLinearGradient(0, H * 0.65, 0, H);
+            grassGrad.addColorStop(0, '#7bc67e');
+            grassGrad.addColorStop(0.3, '#5daF5e');
+            grassGrad.addColorStop(1, '#3d8b3d');
+            ctx.fillStyle = grassGrad;
+            ctx.fillRect(0, H * 0.65, W, H * 0.35);
+            ctx.strokeStyle = 'rgba(80,160,70,0.25)';
+            ctx.lineWidth = 1.5;
+            for (let i = 0; i < 120; i++) {
+                const x = (i * 7 + 3) % W;
+                const y = H * 0.68 + Math.sin(i * 0.7) * 6 + i * 0.08;
+                const h = 8 + Math.sin(i * 1.3) * 5;
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.quadraticCurveTo(x + Math.sin(i * 0.5 + state.time * 0.002) * 3, y - h * 0.5, x + Math.sin(i * 0.7 +
+                    state.time * 0.003) * 4, y - h);
+                ctx.stroke();
+            }
+        }
+
+        function drawCloud(x, y, scale) {
+            ctx.fillStyle = 'rgba(255,255,255,0.7)';
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = 'rgba(255,255,255,0.1)';
+            ctx.beginPath();
+            ctx.arc(x, y, 30 * scale, 0, Math.PI * 2);
+            ctx.arc(x + 30 * scale, y - 10 * scale, 35 * scale, 0, Math.PI * 2);
+            ctx.arc(x + 55 * scale, y, 28 * scale, 0, Math.PI * 2);
+            ctx.arc(x + 25 * scale, y + 10 * scale, 25 * scale, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        function drawBall() {
+            if (!state.ball.active && state.phase !== 'throwing') return;
+            const b = state.ball;
+            const r = b.radius;
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = 'rgba(0,0,0,0.15)';
+            ctx.shadowOffsetY = 4;
+            const grad = ctx.createRadialGradient(b.x - r * 0.3, b.y - r * 0.3, 2, b.x, b.y, r);
+            grad.addColorStop(0, '#ffe066');
+            grad.addColorStop(0.6, '#f7c948');
+            grad.addColorStop(1, '#d4a020');
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
+            ctx.fillStyle = grad;
+            ctx.fill();
+            ctx.strokeStyle = '#b8891a';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(180,130,30,0.4)';
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, r * 0.5, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(b.x - r, b.y);
+            ctx.lineTo(b.x + r, b.y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(b.x, b.y - r);
+            ctx.lineTo(b.x, b.y + r);
+            ctx.stroke();
+            ctx.fillStyle = 'rgba(255,255,255,0.35)';
+            ctx.beginPath();
+            ctx.ellipse(b.x - r * 0.25, b.y - r * 0.3, r * 0.2, r * 0.12, -0.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawMessage() {
+            if (!state.message) return;
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = 'rgba(0,0,0,0.3)';
+            ctx.shadowOffsetY = 2;
+            const alpha = state.messageTimer > 30 ? 1 : state.messageTimer / 30;
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = 'rgba(0,0,0,0.35)';
+            ctx.beginPath();
+            ctx.roundRect(W / 2 - 160, 12, 320, 46, 20);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 22px "Segoe UI", Arial, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = 'rgba(0,0,0,0.2)';
+            ctx.fillText(state.message, W / 2, 35);
+            ctx.globalAlpha = 1;
+            ctx.shadowBlur = 0;
+        }
+
+        function drawDogShadows() {
+            for (const dog of state.dogs) {
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = 'rgba(0,0,0,0.08)';
+                ctx.beginPath();
+                ctx.ellipse(dog.x, dog.y + dog.radius * 0.55, dog.radius * 0.8, dog.radius * 0.2, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, W, H);
+            drawBackground();
+            drawDogShadows();
+            drawBall();
+            for (const dog of state.dogs) {
+                drawDog(dog);
+            }
+            drawMessage();
+            if (state.phase === 'idle') {
+                ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                ctx.font = '14px "Segoe UI", Arial, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText('🖱 Клик по собаке — корм, по полю — мяч', W / 2, H - 14);
+            }
+            ctx.strokeStyle = 'rgba(255,255,200,0.08)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(0, 0, W, H);
+        }
+
+        // ============================================================
+        //   ЦИКЛ, СОБЫТИЯ, ПОЛИФИЛ
+        // ============================================================
+
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const mouseX = (e.clientX - rect.left) * scaleX;
+            const mouseY = (e.clientY - rect.top) * scaleY;
+            if (mouseX >= 0 && mouseX <= W && mouseY >= 0 && mouseY <= H) {
+                throwBall(mouseX, mouseY);
+            }
+        });
+
+        resetBtn.addEventListener('click', resetGame);
+
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, radii) {
+                const r = typeof radii === 'number' ? radii : (radii || 0);
+                this.moveTo(x + r, y);
+                this.arcTo(x + w, y, x + w, y + h, r);
+                this.arcTo(x + w, y + h, x, y + h, r);
+                this.arcTo(x, y + h, x, y, r);
+                this.arcTo(x, y, x + w, y, r);
+                return this;
+            };
+        }
+
+        resetGame();
+        gameLoop();
+        window.addEventListener('resize', () => {});
+    </script>
+
+</body>
+</html>
