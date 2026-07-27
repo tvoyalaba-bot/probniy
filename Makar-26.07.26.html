@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>❄️ Снежная Пушка — Шутер по Снеговикам</title>
+    <style>
+        /* ── Reset & Fullscreen ── */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            overflow: hidden;
+            background: #1a2a3a;
+            font-family: 'Segoe UI', 'Arial', sans-serif;
+            user-select: none;
+            cursor: crosshair;
+        }
+        canvas {
+            display: block;
+        }
+
+        /* ── HUD ── */
+        #ui {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* Score */
+        #score-wrap {
+            position: absolute;
+            top: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(10, 20, 30, 0.65);
+            backdrop-filter: blur(8px);
+            padding: 10px 32px;
+            border-radius: 60px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            color: #fff;
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        #score-wrap span {
+            color: #8cf0ff;
+            font-size: 28px;
+            min-width: 60px;
+            text-align: center;
+            text-shadow: 0 0 20px rgba(140, 240, 255, 0.3);
+        }
+        #score-wrap .label {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 16px;
+            font-weight: 400;
+        }
+        #score-wrap .snowman-icon {
+            font-size: 28px;
+            line-height: 1;
+        }
+
+        /* Hits counter */
+        #hits-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-left: 1px solid rgba(255, 255, 255, 0.15);
+            padding-left: 20px;
+        }
+        #hits-wrap .label {
+            font-size: 14px;
+        }
+        #hits-wrap span {
+            color: #ffd966;
+            font-size: 24px;
+            min-width: 40px;
+        }
+
+        /* Ammo */
+        #ammo-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-left: 1px solid rgba(255, 255, 255, 0.15);
+            padding-left: 20px;
+        }
+        #ammo-wrap .label {
+            font-size: 14px;
+        }
+        #ammo-wrap span {
+            color: #ffb3b3;
+            font-size: 24px;
+            min-width: 40px;
+        }
+
+        /* Crosshair */
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            opacity: 0.7;
+        }
+        #crosshair::before,
+        #crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 2px;
+        }
+        #crosshair::before {
+            width: 2px;
+            height: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.3);
+        }
+        #crosshair::after {
+            width: 100%;
+            height: 2px;
+            top: 50%;
+            transform: translateY(-50%);
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.3);
+        }
+        #crosshair .dot {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: #ff6b6b;
+            box-shadow: 0 0 12px rgba(255, 80, 80, 0.5);
+        }
+
+        /* Instructions */
+        #instructions {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(10, 20, 30, 0.6);
+            backdrop-filter: blur(6px);
+            padding: 12px 28px;
+            border-radius: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 15px;
+            font-weight: 400;
+            letter-spacing: 0.3px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            transition: opacity 0.6s;
+            pointer-events: none;
+        }
+        #instructions .key {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.12);
+            padding: 2px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #fff;
+        }
+        #instructions .icon {
+            font-size: 20px;
+        }
+
+        /* Combo / feedback */
+        #feedback {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 64px;
+            font-weight: 800;
+            color: #fff;
+            text-shadow: 0 4px 40px rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.15s ease;
+        }
+        #feedback.show {
+            opacity: 1;
+            transform: translate(-50%, -60%);
+        }
+        #feedback.hit {
+            color: #6bffb8;
+        }
+        #feedback.miss {
+            color: #ff6b6b;
+            font-size: 36px;
+        }
+        #feedback.noammo {
+            color: #ffb3b3;
+            font-size: 32px;
+        }
+
+        /* Ammo / cooldown indicator */
+        #cooldown-wrap {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            opacity: 0.6;
+        }
+        #cooldown-fill {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #8cf0ff, #4fc3ff);
+            border-radius: 4px;
+            transition: width 0.05s linear;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            #score-wrap {
+                padding: 6px 16px;
+                font-size: 14px;
+                gap: 10px;
+                top: 12px;
+            }
+            #score-wrap span {
+                font-size: 20px;
+                min-width: 40px;
+            }
+            #hits-wrap {
+                padding-left: 10px;
+            }
+            #hits-wrap span {
+                font-size: 18px;
+                min-width: 30px;
+            }
+            #ammo-wrap {
+                padding-left: 10px;
+            }
+            #ammo-wrap span {
+                font-size: 18px;
+                min-width: 30px;
+            }
+            #instructions {
+                font-size: 12px;
+                padding: 8px 16px;
+                bottom: 20px;
+                gap: 10px;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            #crosshair {
+                width: 28px;
+                height: 28px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ─── UI ─── -->
+    <div id="ui">
+        <!-- Score -->
+        <div id="score-wrap">
+            <span class="snowman-icon">☃️</span>
+            <span class="label">Счёт</span>
+            <span id="score">0</span>
+            <div id="hits-wrap">
+                <span class="label">🎯</span>
+                <span id="hits">0</span>
+            </div>
+            <div id="ammo-wrap">
+                <span class="label">🔫</span>
+                <span id="ammo">10</span>
+            </div>
+        </div>
+
+        <!-- Crosshair -->
+        <div id="crosshair"><div class="dot"></div></div>
+
+        <!-- Feedback -->
+        <div id="feedback"></div>
+
+        <!-- Cooldown -->
+        <div id="cooldown-wrap"><div id="cooldown-fill" style="width:100%"></div></div>
+
+        <!-- Instructions -->
+        <div id="instructions">
+            <span class="icon">🖱️</span>
+            Двигай мышью для прицеливания
+            <span class="key">ЛКМ</span>
+            Стрелять
+            <span style="opacity:0.4;font-size:13px;">|</span>
+            <span style="font-size:13px;opacity:0.6;">❄️ попади по всем снеговикам!</span>
+        </div>
+    </div>
+
+    <!-- ─── THREE.JS ─── -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  ИМПОРТЫ
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        import * as THREE from 'three';
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  DOM-ЭЛЕМЕНТЫ
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        const scoreEl = document.getElementById('score');
+        const hitsEl = document.getElementById('hits');
+        const ammoEl = document.getElementById('ammo');
+        const feedbackEl = document.getElementById('feedback');
+        const cooldownFill = document.getElementById('cooldown-fill');
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  СОСТОЯНИЕ ИГРЫ
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        const state = {
+            score: 0,
+            hits: 0,
+            ammo: 10,
+            maxAmmo: 30,
+            cooldown: 0,
+            cooldownMax: 0.45,
+            canShoot: true,
+            snowmen: [],
+            snowballs: [],
+            aimTarget: new THREE.Vector3(0, 0, 10),
+            mouse: new THREE.Vector2(0, 0),
+        };
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  СЦЕНА, КАМЕРА, РЕНДЕР
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        scene.fog = new THREE.Fog(0x87CEEB, 25, 55);
+
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 9, 14);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        document.body.prepend(renderer.domElement);
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  ОСВЕЩЕНИЕ
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        const ambient = new THREE.AmbientLight(0x8899bb, 0.5);
+        scene.add(ambient);
+
+        const hemi = new THREE.HemisphereLight(0x88ccff, 0x445566, 0.6);
+        scene.add(hemi);
+
+        const sun = new THREE.DirectionalLight(0xffeedd, 1.8);
+        sun.position.set(15, 25, 10);
+        sun.castShadow = true;
+        sun.shadow.mapSize.width = 1024;
+        sun.shadow.mapSize.height = 1024;
+        sun.shadow.camera.near = 0.5;
+        sun.shadow.camera.far = 50;
+        sun.shadow.camera.left = -20;
+        sun.shadow.camera.right = 20;
+        sun.shadow.camera.top = 20;
+        sun.shadow.camera.bottom = -20;
+        scene.add(sun);
+
+        const fill = new THREE.DirectionalLight(0x8888ff, 0.3);
+        fill.position.set(-10, 5, -10);
+        scene.add(fill);
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  ЗЕМЛЯ
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        const groundGeo = new THREE.PlaneGeometry(60, 60);
+        const groundMat = new THREE.MeshStandardMaterial({
+            color: 0xe8f0f8,
+            roughness: 0.8,
+            metalness: 0.0,
+            emissive: new THREE.Color(0x8899bb),
+            emissiveIntensity: 0.05,
+        });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -0.05;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // ── Снежные сугробы (декоративные) ──
+        for (let i = 0; i < 60; i++) {
+            const r = 0.4 + Math.random() * 1.2;
+            const mound = new THREE.Mesh(
+                new THREE.SphereGeometry(r, 8, 8),
+                new THREE.MeshStandardMaterial({
+                    color: 0xf0f8ff,
+                    roughness: 0.9,
+                    metalness: 0,
+                    emissive: new THREE.Color(0x8899bb),
+                    emissiveIntensity: 0.03,
+                })
+            );
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 3 + Math.random() * 22;
+            mound.position.set(Math.cos(angle) * dist, -0.05 + r * 0.4, Math.sin(angle) * dist);
+            mound.scale.y = 0.3 + Math.random() * 0.3;
+            mound.castShadow = true;
+            mound.receiveShadow = true;
+            scene.add(mound);
+        }
+
+        // ── Ёлки ──
+        function createTree(x, z, scale = 1) {
+            const group = new THREE.Group();
+            const trunk = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.08 * scale, 0.12 * scale, 0.6 * scale, 6),
+                new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.9 })
+            );
+            trunk.position.y = 0.3 * scale;
+            trunk.castShadow = true;
+            group.add(trunk);
+
+            for (let i = 0; i < 4; i++) {
+                const h = 0.5 + i * 0.4;
+                const r = (1.0 - i * 0.18) * scale;
+                const tier = new THREE.Mesh(
+                    new THREE.ConeGeometry(r, 0.5 * scale, 7),
+                    new THREE.MeshStandardMaterial({
+                        color: new THREE.Color().setHSL(0.28 + Math.random() * 0.06, 0.5, 0.25 + Math.random() * 0.12),
+                        roughness: 0.8,
+                    })
+                );
+                tier.position.y = (0.3 + i * 0.35) * scale;
+                tier.castShadow = true;
+                tier.receiveShadow = true;
+                group.add(tier);
+            }
+
+            const snowCap = new THREE.Mesh(
+                new THREE.SphereGeometry(0.3 * scale, 6, 6),
+                new THREE.MeshStandardMaterial({ color: 0xf0f8ff, roughness: 0.9 })
+            );
+            snowCap.position.set(0, 1.6 * scale, 0);
+            snowCap.scale.y = 0.3;
+            snowCap.castShadow = true;
+            group.add(snowCap);
+
+            group.position.set(x, 0, z);
+            group.rotation.y = Math.random() * Math.PI * 2;
+            return group;
+        }
+
+        for (let i = 0; i < 25; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 4 + Math.random() * 18;
+            const tree = createTree(
+                Math.cos(angle) * dist,
+                Math.sin(angle) * dist,
+                0.7 + Math.random() * 0.6
+            );
+            scene.add(tree);
+        }
+
+        // ── Падающий снег ──
+        const snowParticlesGeo = new THREE.BufferGeometry();
+        const snowCount = 1500;
+        const snowPos = new Float32Array(snowCount * 3);
+        const snowVel = new Float32Array(snowCount);
+        for (let i = 0; i < snowCount; i++) {
+            snowPos[i * 3] = (Math.random() - 0.5) * 50;
+            snowPos[i * 3 + 1] = Math.random() * 20;
+            snowPos[i * 3 + 2] = (Math.random() - 0.5) * 50;
+            snowVel[i] = 0.5 + Math.random() * 1.0;
+        }
+        snowParticlesGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
+        const snowParticlesMat = new THREE.PointsMaterial({
+            color: 0xffffff,
+            size: 0.08,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+        });
+        const snowParticles = new THREE.Points(snowParticlesGeo, snowParticlesMat);
+        scene.add(snowParticles);
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  ПУШКА
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        const cannonGroup = new THREE.Group();
+        cannonGroup.position.set(0, 0.2, 0);
+
+        const base = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.9, 1.2, 0.4, 12),
+            new THREE.MeshStandardMaterial({
+                color: 0x8a9ba8,
+                roughness: 0.6,
+                metalness: 0.3,
+            })
+        );
+        base.position.y = 0.2;
+        base.castShadow = true;
+        base.receiveShadow = true;
+        cannonGroup.add(base);
+
+        const pivot = new THREE.Mesh(
+            new THREE.SphereGeometry(0.5, 12, 12),
+            new THREE.MeshStandardMaterial({
+                color: 0x7a8a96,
+                roughness: 0.5,
+                metalness: 0.4,
+            })
+        );
+        pivot.position.y = 0.5;
+        pivot.castShadow = true;
+        cannonGroup.add(pivot);
+
+        const barrelGroup = new THREE.Group();
+        barrelGroup.position.set(0, 0.5, 0);
+
+        const barrel = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.2, 0.3, 1.6, 10),
+            new THREE.MeshStandardMaterial({
+                color: 0x5a6a76,
+                roughness: 0.4,
+                metalness: 0.6,
+            })
+        );
+        barrel.rotation.x = Math.PI / 2;
+        barrel.position.z = 0.8;
+        barrel.castShadow = true;
+        barrelGroup.add(barrel);
+
+        const muzzle = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.32, 0.28, 0.2, 10),
+            new THREE.MeshStandardMaterial({
+                color: 0x4a5a66,
+                roughness: 0.3,
+                metalness: 0.7,
+            })
+        );
+        muzzle.rotation.x = Math.PI / 2;
+        muzzle.position.z = 1.7;
+        muzzle.castShadow = true;
+        barrelGroup.add(muzzle);
+
+        for (let i = 0; i < 2; i++) {
+            const ring = new THREE.Mesh(
+                new THREE.TorusGeometry(0.28, 0.04, 8, 12),
+                new THREE.MeshStandardMaterial({
+                    color: 0x6a7a86,
+                    roughness: 0.4,
+                    metalness: 0.5,
+                })
+            );
+            ring.rotation.x = Math.PI / 2;
+            ring.position.z = 0.4 + i * 0.7;
+            barrelGroup.add(ring);
+        }
+
+        const snowTip = new THREE.Mesh(
+            new THREE.SphereGeometry(0.18, 8, 8),
+            new THREE.MeshStandardMaterial({
+                color: 0xf0f8ff,
+                roughness: 0.9,
+            })
+        );
+        snowTip.position.z = 1.9;
+        snowTip.scale.y = 0.7;
+        barrelGroup.add(snowTip);
+
+        cannonGroup.add(barrelGroup);
+        scene.add(cannonGroup);
+        const barrelPivot = barrelGroup;
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  СОЗДАНИЕ СНЕГОВИКОВ
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function createSnowman(x, z) {
+            const group = new THREE.Group();
+            const s = 0.7 + Math.random() * 0.4;
+            const colors = [0xf8faff, 0xf0f8ff, 0xecf4fc];
+            const mat = (col) => new THREE.MeshStandardMaterial({
+                color: col,
+                roughness: 0.7,
+                metalness: 0.0,
+                emissive: new THREE.Color(0x8899bb),
+                emissiveIntensity: 0.05,
+            });
+
+            const bottom = new THREE.Mesh(new THREE.SphereGeometry(0.45 * s, 14, 14), mat(colors[0]));
+            bottom.position.y = 0.45 * s;
+            bottom.castShadow = true;
+            bottom.receiveShadow = true;
+            group.add(bottom);
+
+            const middle = new THREE.Mesh(new THREE.SphereGeometry(0.33 * s, 12, 12), mat(colors[1]));
+            middle.position.y = 0.9 * s;
+            middle.castShadow = true;
+            middle.receiveShadow = true;
+            group.add(middle);
+
+            const top = new THREE.Mesh(new THREE.SphereGeometry(0.24 * s, 10, 10), mat(colors[2]));
+            top.position.y = 1.25 * s;
+            top.castShadow = true;
+            top.receiveShadow = true;
+            group.add(top);
+
+            const eyeMat = new THREE.MeshStandardMaterial({ color: 0x1a1a2e, roughness: 0.2 });
+            for (let side of [-1, 1]) {
+                const eye = new THREE.Mesh(new THREE.SphereGeometry(0.05 * s, 8, 8), eyeMat);
+                eye.position.set(side * 0.12 * s, 1.3 * s, 0.2 * s);
+                group.add(eye);
+            }
+
+            const nose = new THREE.Mesh(
+                new THREE.ConeGeometry(0.04 * s, 0.18 * s, 6),
+                new THREE.MeshStandardMaterial({ color: 0xff8c00, roughness: 0.6 })
+            );
+            nose.rotation.x = 0.3;
+            nose.position.set(0, 1.24 * s, 0.22 * s);
+            group.add(nose);
+
+            const scarf = new THREE.Mesh(
+                new THREE.TorusGeometry(0.28 * s, 0.05 * s, 8, 14),
+                new THREE.MeshStandardMaterial({
+                    color: new THREE.Color().setHSL(Math.random() * 0.1 + 0.0, 0.7, 0.5),
+                    roughness: 0.8,
+                })
+            );
+            scarf.position.y = 0.85 * s;
+            scarf.rotation.x = Math.PI / 2;
+            scarf.scale.x = 1.2;
+            group.add(scarf);
+
+            const btnMat = new THREE.MeshStandardMaterial({ color: 0x2a2a3a, roughness: 0.3 });
+            for (let i = 0; i < 3; i++) {
+                const btn = new THREE.Mesh(new THREE.SphereGeometry(0.035 * s, 6, 6), btnMat);
+                btn.position.set(0, 0.6 * s + i * 0.25 * s, 0.42 * s);
+                group.add(btn);
+            }
+
+            const branchMat = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.9 });
+            for (let side of [-1, 1]) {
+                const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.015 * s, 0.025 * s, 0.35 * s, 5), branchMat);
+                arm.position.set(side * 0.35 * s, 0.9 * s, 0);
+                arm.rotation.z = side * 0.6;
+                arm.rotation.x = 0.2;
+                arm.castShadow = true;
+                group.add(arm);
+
+                const twig = new THREE.Mesh(new THREE.CylinderGeometry(0.01 * s, 0.015 * s, 0.15 * s, 4), branchMat);
+                twig.position.set(side * 0.5 * s, 0.85 * s, 0.1 * s);
+                twig.rotation.z = side * 0.8;
+                twig.rotation.x = 0.6;
+                group.add(twig);
+            }
+
+            group.position.set(x, 0, z);
+            // Используем стрелочную функцию, чтобы захватить group
+            group.userData = {
+                radius: 0.45 * s,
+                health: 1,
+                speed: 0.3 + Math.random() * 0.4,
+                angle: Math.random() * Math.PI * 2,
+                turnTimer: 0,
+                turnInterval: 2 + Math.random() * 4,
+                wobble: Math.random() * 10,
+                alive: true,
+                scale: s,
+                getCenter: () => new THREE.Vector3(group.position.x, group.position.y + 0.7 * group.userData.scale, group.position.z)
+            };
+
+            group.rotation.y = Math.random() * Math.PI * 2;
+            return group;
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  СПАВН СНЕГОВИКОВ
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        const SNOWMAN_COUNT = 12;
+
+        function spawnSnowman() {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 4 + Math.random() * 14;
+            const x = Math.cos(angle) * dist;
+            const z = Math.sin(angle) * dist;
+            const sm = createSnowman(x, z);
+            scene.add(sm);
+            state.snowmen.push(sm);
+            return sm;
+        }
+
+        for (let i = 0; i < SNOWMAN_COUNT; i++) {
+            spawnSnowman();
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ: ПЕРЕСЕЧЕНИЕ ОТРЕЗКА И СФЕРЫ
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function intersectSegmentSphere(p1, p2, center, radius) {
+            const d = new THREE.Vector3().copy(p2).sub(p1);
+            const m = new THREE.Vector3().copy(center).sub(p1);
+            const a = d.dot(d);
+            const b = 2 * m.dot(d);
+            const c = m.dot(m) - radius * radius;
+            let disc = b * b - 4 * a * c;
+            if (disc < 0) return false;
+            disc = Math.sqrt(disc);
+            const t1 = (-b - disc) / (2 * a);
+            const t2 = (-b + disc) / (2 * a);
+            if (t1 >= 0 && t1 <= 1) return true;
+            if (t2 >= 0 && t2 <= 1) return true;
+            const dist1 = new THREE.Vector3().copy(p1).sub(center).length();
+            const dist2 = new THREE.Vector3().copy(p2).sub(center).length();
+            if (dist1 <= radius || dist2 <= radius) return true;
+            return false;
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  ПОИСК СНЕГОВИКА ПОД ПРИЦЕЛОМ
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function findSnowmanUnderCrosshair() {
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(state.mouse, camera);
+            let closest = null;
+            let closestDist = Infinity;
+
+            for (const sm of state.snowmen) {
+                if (!sm.userData.alive) continue;
+                const center = sm.userData.getCenter();
+                const radius = sm.userData.radius * 1.2;
+                const ray = raycaster.ray;
+                const toCenter = new THREE.Vector3().copy(center).sub(ray.origin);
+                const proj = toCenter.dot(ray.direction);
+                if (proj < 0) continue;
+                const closestPoint = ray.origin.clone().add(ray.direction.clone().multiplyScalar(proj));
+                const distToCenter = closestPoint.distanceTo(center);
+                if (distToCenter < radius && proj < closestDist) {
+                    closestDist = proj;
+                    closest = sm;
+                }
+            }
+            return closest;
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  ВЫСТРЕЛ (СНЕЖОК) — С УЧЁТОМ БОЕЗАПАСА
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function shootSnowball(targetPos) {
+            if (state.ammo <= 0) {
+                showFeedback('❌ Нет снарядов!', 'noammo');
+                return;
+            }
+            if (!state.canShoot) return;
+
+            state.canShoot = false;
+            state.cooldown = 0;
+            state.ammo--;
+            updateAmmoUI();
+
+            const startPos = new THREE.Vector3(0, 0.8, 1.8);
+            cannonGroup.localToWorld(startPos);
+
+            let aimPos = targetPos.clone();
+            const targetSnowman = findSnowmanUnderCrosshair();
+            if (targetSnowman) {
+                aimPos.copy(targetSnowman.userData.getCenter());
+                aimPos.y += 0.15;
+            } else {
+                aimPos.y = 1.2;
+            }
+
+            const dir = new THREE.Vector3()
+                .copy(aimPos)
+                .sub(startPos)
+                .normalize();
+
+            const spread = 0.02;
+            dir.x += (Math.random() - 0.5) * spread;
+            dir.y += (Math.random() - 0.5) * spread;
+            dir.z += (Math.random() - 0.5) * spread;
+            dir.normalize();
+
+            const speed = 22;
+
+            const ballMat = new THREE.MeshStandardMaterial({
+                color: 0xf8faff,
+                roughness: 0.6,
+                metalness: 0.0,
+                emissive: new THREE.Color(0xaaccff),
+                emissiveIntensity: 0.15,
+            });
+            const ball = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 10), ballMat);
+            ball.position.copy(startPos);
+            ball.castShadow = true;
+            scene.add(ball);
+
+            const glowMat = new THREE.SpriteMaterial({
+                map: (() => {
+                    const c = document.createElement('canvas');
+                    c.width = 64;
+                    c.height = 64;
+                    const ctx = c.getContext('2d');
+                    const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+                    grad.addColorStop(0, 'rgba(180, 230, 255, 0.6)');
+                    grad.addColorStop(0.5, 'rgba(120, 200, 255, 0.2)');
+                    grad.addColorStop(1, 'rgba(120, 200, 255, 0)');
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(0, 0, 64, 64);
+                    return new THREE.CanvasTexture(c);
+                })(),
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+            });
+            const glow = new THREE.Sprite(glowMat);
+            glow.scale.set(1.2, 1.2, 1);
+            ball.add(glow);
+
+            const data = {
+                mesh: ball,
+                velocity: dir.clone().multiplyScalar(speed),
+                life: 3.0,
+                alive: true,
+                prevPos: startPos.clone(),
+            };
+            state.snowballs.push(data);
+
+            const flash = new THREE.Mesh(
+                new THREE.SphereGeometry(0.4, 8, 8),
+                new THREE.MeshBasicMaterial({
+                    color: 0x88ddff,
+                    transparent: true,
+                    opacity: 0.6,
+                })
+            );
+            flash.position.copy(startPos);
+            scene.add(flash);
+            setTimeout(() => {
+                scene.remove(flash);
+                flash.geometry.dispose();
+                flash.material.dispose();
+            }, 150);
+
+            updateCooldownUI();
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  ОБНОВЛЕНИЕ UI
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function updateScoreUI() {
+            scoreEl.textContent = state.score;
+            hitsEl.textContent = state.hits;
+        }
+
+        function updateAmmoUI() {
+            ammoEl.textContent = state.ammo;
+        }
+
+        function updateCooldownUI() {
+            const pct = state.canShoot ? 1 : (state.cooldown / state.cooldownMax);
+            cooldownFill.style.width = `${Math.min(1, pct) * 100}%`;
+        }
+
+        function showFeedback(text, type = 'hit') {
+            feedbackEl.textContent = text;
+            feedbackEl.className = `show ${type}`;
+            clearTimeout(feedbackEl._timeout);
+            feedbackEl._timeout = setTimeout(() => {
+                feedbackEl.className = '';
+            }, 800);
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  ПРИЦЕЛИВАНИЕ
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        const raycaster = new THREE.Raycaster();
+        const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+        function updateAim(clientX, clientY) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            const x = ((clientX - rect.left) / rect.width) * 2 - 1;
+            const y = -((clientY - rect.top) / rect.height) * 2 + 1;
+            state.mouse.set(x, y);
+
+            raycaster.setFromCamera(state.mouse, camera);
+            const intersect = new THREE.Vector3();
+            raycaster.ray.intersectPlane(groundPlane, intersect);
+
+            if (intersect) {
+                const dist = intersect.length();
+                if (dist > 30) {
+                    intersect.normalize().multiplyScalar(30);
+                }
+                state.aimTarget.copy(intersect);
+                state.aimTarget.y = 0;
+
+                const dir = new THREE.Vector3()
+                    .copy(state.aimTarget)
+                    .sub(new THREE.Vector3(0, 0.5, 0));
+                const angleY = Math.atan2(dir.x, dir.z);
+                cannonGroup.rotation.y = angleY;
+
+                const distHoriz = Math.sqrt(dir.x * dir.x + dir.z * dir.z);
+                const angleX = Math.atan2(dir.y, distHoriz);
+                barrelPivot.rotation.x = Math.max(-0.2, Math.min(0.6, angleX));
+            }
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  УПРАВЛЕНИЕ
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        renderer.domElement.addEventListener('mousemove', (e) => {
+            updateAim(e.clientX, e.clientY);
+        });
+
+        renderer.domElement.addEventListener('click', (e) => {
+            if (state.canShoot) {
+                shootSnowball(state.aimTarget);
+            }
+        });
+
+        renderer.domElement.addEventListener('touchstart', (e) => {
+            const t = e.changedTouches[0];
+            if (t) {
+                updateAim(t.clientX, t.clientY);
+                if (state.canShoot) {
+                    shootSnowball(state.aimTarget);
+                }
+            }
+        }, { passive: true });
+
+        renderer.domElement.addEventListener('touchmove', (e) => {
+            const t = e.changedTouches[0];
+            if (t) {
+                updateAim(t.clientX, t.clientY);
+            }
+        }, { passive: true });
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  КОЛЛИЗИИ
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function checkCollisions() {
+            const toRemove = [];
+
+            for (const sb of state.snowballs) {
+                if (!sb.alive) continue;
+                const pos = sb.mesh.position;
+                const prev = sb.prevPos;
+
+                for (const sm of state.snowmen) {
+                    if (!sm.userData.alive) continue;
+                    const center = sm.userData.getCenter();
+                    const radius = sm.userData.radius * 1.4;
+
+                    if (intersectSegmentSphere(prev, pos, center, radius)) {
+                        sb.alive = false;
+                        sm.userData.alive = false;
+                        toRemove.push({ snowball: sb, snowman: sm });
+
+                        state.score += 10 + Math.floor(Math.random() * 5);
+                        state.hits += 1;
+                        state.ammo = Math.min(state.ammo + 1, state.maxAmmo);
+                        updateScoreUI();
+                        updateAmmoUI();
+                        showFeedback('💥 +' + (10 + Math.floor(Math.random() * 5)), 'hit');
+
+                        createSnowExplosion(center.clone());
+
+                        setTimeout(() => {
+                            scene.remove(sm);
+                            const idx = state.snowmen.indexOf(sm);
+                            if (idx > -1) state.snowmen.splice(idx, 1);
+                            setTimeout(() => {
+                                if (state.snowmen.length < SNOWMAN_COUNT + 4) {
+                                    spawnSnowman();
+                                }
+                            }, 300);
+                        }, 100);
+
+                        break;
+                    }
+                }
+            }
+
+            for (const item of toRemove) {
+                const sb = item.snowball;
+                if (sb.mesh.parent) {
+                    scene.remove(sb.mesh);
+                    sb.mesh.geometry.dispose();
+                    sb.mesh.material.dispose();
+                }
+                const idx = state.snowballs.indexOf(sb);
+                if (idx > -1) state.snowballs.splice(idx, 1);
+            }
+
+            for (let i = state.snowballs.length - 1; i >= 0; i--) {
+                const sb = state.snowballs[i];
+                if (!sb.alive) continue;
+                const pos = sb.mesh.position;
+                if (pos.length() > 35 || pos.y < -2) {
+                    sb.alive = false;
+                    scene.remove(sb.mesh);
+                    sb.mesh.geometry.dispose();
+                    sb.mesh.material.dispose();
+                    state.snowballs.splice(i, 1);
+                }
+            }
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  ЭФФЕКТ ВЗРЫВА СНЕГА
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function createSnowExplosion(position) {
+            const count = 40;
+            const colors = [0xf8faff, 0xf0f8ff, 0xecf4fc, 0xffffff];
+            for (let i = 0; i < count; i++) {
+                const size = 0.04 + Math.random() * 0.12;
+                const particle = new THREE.Mesh(
+                    new THREE.SphereGeometry(size, 4, 4),
+                    new THREE.MeshStandardMaterial({
+                        color: colors[Math.floor(Math.random() * colors.length)],
+                        roughness: 0.8,
+                        emissive: new THREE.Color(0x88bbff),
+                        emissiveIntensity: 0.1,
+                    })
+                );
+                particle.position.copy(position);
+                particle.position.y += 0.3 + Math.random() * 0.4;
+                const dir = new THREE.Vector3(
+                    (Math.random() - 0.5) * 2,
+                    Math.random() * 1.5 + 0.5,
+                    (Math.random() - 0.5) * 2
+                ).normalize().multiplyScalar(1 + Math.random() * 3);
+                particle.userData.vel = dir;
+                particle.userData.life = 0.6 + Math.random() * 0.8;
+                particle.userData.maxLife = particle.userData.life;
+                scene.add(particle);
+                state.snowballs.push({
+                    mesh: particle,
+                    velocity: dir,
+                    life: particle.userData.life,
+                    alive: true,
+                    isParticle: true,
+                    prevPos: particle.position.clone(),
+                    userData: particle.userData,
+                });
+            }
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  АНИМАЦИОННЫЙ ЦИКЛ
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = Math.min(clock.getDelta(), 0.05);
+            const time = clock.elapsedTime;
+
+            if (!state.canShoot) {
+                state.cooldown += delta;
+                if (state.cooldown >= state.cooldownMax) {
+                    state.canShoot = true;
+                    state.cooldown = state.cooldownMax;
+                }
+                updateCooldownUI();
+            }
+
+            // Движение снеговиков
+            for (const sm of state.snowmen) {
+                if (!sm.userData.alive) continue;
+                const data = sm.userData;
+                data.turnTimer += delta;
+
+                if (data.turnTimer > data.turnInterval) {
+                    data.turnTimer = 0;
+                    data.angle += (Math.random() - 0.5) * 1.5;
+                    data.turnInterval = 2 + Math.random() * 4;
+                }
+
+                const speed = data.speed * delta;
+                const dx = Math.sin(data.angle) * speed;
+                const dz = Math.cos(data.angle) * speed;
+
+                sm.position.x += dx;
+                sm.position.z += dz;
+                sm.rotation.y = Math.atan2(Math.sin(data.angle), Math.cos(data.angle));
+
+                const dist = Math.sqrt(sm.position.x * sm.position.x + sm.position.z * sm.position.z);
+                if (dist > 22) {
+                    data.angle += Math.PI + (Math.random() - 0.5) * 0.5;
+                    sm.position.x -= dx * 2;
+                    sm.position.z -= dz * 2;
+                }
+                if (dist < 2.5) {
+                    data.angle += Math.PI + (Math.random() - 0.5) * 0.5;
+                    sm.position.x += dx * 2;
+                    sm.position.z += dz * 2;
+                }
+                sm.position.y = Math.sin(time * 1.2 + data.wobble) * 0.02;
+            }
+
+            // Движение снежков
+            for (let i = state.snowballs.length - 1; i >= 0; i--) {
+                const sb = state.snowballs[i];
+                if (!sb.alive) {
+                    if (sb.mesh.parent) {
+                        scene.remove(sb.mesh);
+                        sb.mesh.geometry.dispose();
+                        sb.mesh.material.dispose();
+                    }
+                    state.snowballs.splice(i, 1);
+                    continue;
+                }
+
+                if (sb.isParticle) {
+                    if (sb.userData && sb.userData.maxLife) {
+                        sb.mesh.position.add(sb.velocity.clone().multiplyScalar(delta));
+                        sb.velocity.y -= 3 * delta;
+                        sb.life -= delta;
+                        if (sb.life <= 0) {
+                            sb.alive = false;
+                            scene.remove(sb.mesh);
+                            sb.mesh.geometry.dispose();
+                            sb.mesh.material.dispose();
+                            state.snowballs.splice(i, 1);
+                        } else {
+                            const scale = 1 + (1 - sb.life / sb.userData.maxLife) * 2;
+                            sb.mesh.scale.set(scale, scale, scale);
+                            sb.mesh.material.opacity = sb.life / sb.userData.maxLife;
+                            sb.mesh.material.transparent = true;
+                        }
+                    } else {
+                        sb.alive = false;
+                        scene.remove(sb.mesh);
+                        sb.mesh.geometry.dispose();
+                        sb.mesh.material.dispose();
+                        state.snowballs.splice(i, 1);
+                    }
+                    continue;
+                }
+
+                sb.prevPos.copy(sb.mesh.position);
+                const step = sb.velocity.clone().multiplyScalar(delta);
+                sb.mesh.position.add(step);
+                sb.velocity.y -= 1.5 * delta;
+                sb.mesh.rotation.x += delta * 5;
+                sb.mesh.rotation.z += delta * 3;
+
+                if (sb.mesh.children.length > 0) {
+                    const glow = sb.mesh.children[0];
+                    if (glow.isSprite) {
+                        const pulse = 1 + Math.sin(time * 8 + sb.mesh.id) * 0.15;
+                        glow.scale.set(1.2 * pulse, 1.2 * pulse, 1);
+                    }
+                }
+
+                sb.life -= delta;
+                if (sb.life <= 0) {
+                    sb.alive = false;
+                    scene.remove(sb.mesh);
+                    sb.mesh.geometry.dispose();
+                    sb.mesh.material.dispose();
+                    state.snowballs.splice(i, 1);
+                }
+            }
+
+            checkCollisions();
+
+            // Снегопад
+            const positions = snowParticles.geometry.attributes.position.array;
+            for (let i = 0; i < snowCount; i++) {
+                positions[i * 3 + 1] -= snowVel[i] * delta * 0.8;
+                positions[i * 3] += Math.sin(time * 0.5 + i) * delta * 0.02;
+                positions[i * 3 + 2] += Math.cos(time * 0.3 + i * 0.7) * delta * 0.02;
+                if (positions[i * 3 + 1] < -1) {
+                    positions[i * 3 + 1] = 18 + Math.random() * 2;
+                    positions[i * 3] = (Math.random() - 0.5) * 50;
+                    positions[i * 3 + 2] = (Math.random() - 0.5) * 50;
+                }
+            }
+            snowParticles.geometry.attributes.position.needsUpdate = true;
+
+            const targetCamPos = new THREE.Vector3(
+                state.mouse.x * 2.5,
+                9 + state.mouse.y * 1.5,
+                14 - state.mouse.x * 1.0
+            );
+            camera.position.lerp(targetCamPos, 0.02);
+            camera.lookAt(0, 0.5, 0);
+
+            renderer.render(scene, camera);
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  АДАПТИВНОСТЬ И ЗАПУСК
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        window.addEventListener('resize', () => {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+        });
+
+        updateScoreUI();
+        updateAmmoUI();
+        animate();
+
+        setTimeout(() => {
+            showFeedback('❄️ Стреляй по снеговикам!', 'hit');
+        }, 800);
+
+        setInterval(() => {
+            if (state.snowmen.length < SNOWMAN_COUNT + 2) {
+                spawnSnowman();
+            }
+        }, 5000);
+
+        console.log('❄️ Снежная Пушка запущена!');
+        console.log('🎯 Целься мышью и стреляй ЛКМ по снеговикам!');
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault();
+                if (state.canShoot) {
+                    shootSnowball(state.aimTarget);
+                }
+            }
+            if (e.key === 'r' || e.key === 'R') {
+                state.score = 0;
+                state.hits = 0;
+                state.ammo = 10;
+                updateScoreUI();
+                updateAmmoUI();
+                showFeedback('🔄 Сброс', 'miss');
+            }
+        });
+
+        console.log('⌨️ Пробел / Enter — выстрел, R — сброс счёта и восстановление 10 снарядов');
+    </script>
+</body>
+</html>
