@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Робот в доме — VHS Хоррор</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Courier New', monospace; }
+        #info {
+            position: absolute; top: 20px; left: 20px; color: #fff;
+            background: rgba(0,0,0,0.7); padding: 10px 20px; border-radius: 8px;
+            pointer-events: none; z-index: 10; font-size: 18px;
+            border: 1px solid #555;
+        }
+        #info span { margin-right: 20px; }
+        #message {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            background: rgba(0,0,0,0.85); padding: 40px 60px; border-radius: 16px;
+            border: 2px solid #ff3333; text-align: center; display: none;
+            z-index: 20; color: #fff; backdrop-filter: blur(4px);
+        }
+        #message h1 { color: #ff4444; font-size: 40px; margin-bottom: 10px; text-shadow: 0 0 30px #ff0000; }
+        #message p { font-size: 20px; color: #ddd; }
+        #message button {
+            margin-top: 25px; padding: 10px 40px; background: #ff3333; border: none;
+            border-radius: 30px; color: #fff; font-weight: bold; font-size: 20px;
+            cursor: pointer; transition: 0.2s;
+        }
+        #message button:hover { background: #ff5555; transform: scale(1.05); }
+        #controls-hint {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            color: #aaa; background: rgba(0,0,0,0.6); padding: 8px 20px;
+            border-radius: 30px; font-size: 14px; pointer-events: none; z-index: 10;
+            border: 1px solid #444;
+        }
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            color: rgba(255,255,255,0.3); font-size: 30px; pointer-events: none; z-index: 5;
+            text-shadow: 0 0 5px #000;
+        }
+        #start-block {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); display: flex; justify-content: center;
+            align-items: center; z-index: 30; color: #fff; font-size: 28px;
+            cursor: pointer; flex-direction: column;
+        }
+        #start-block p { margin-top: 10px; font-size: 18px; color: #aaa; }
+        /* Скример (красная вспышка) */
+        #screamer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #ff0000; z-index: 25; display: none;
+            pointer-events: none; animation: flash 0.3s ease-out;
+        }
+        @keyframes flash {
+            0% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+        /* VHS overlay canvas */
+        #vhs-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 15;
+        }
+    </style>
+</head>
+<body>
+    <div id="start-block">
+        <div>🎮 Кликните, чтобы начать</div>
+        <p>WASD — движение • Зажмите мышь для осмотра • E — действие</p>
+    </div>
+    <div id="info">
+        <span>🗝️ <span id="keyCount">0</span> / 2</span>
+        <span>🏠 <span id="floorDisplay">1</span> этаж</span>
+        <span>🤖 <span id="robotStatus">🔴</span></span>
+    </div>
+    <div id="crosshair">+</div>
+    <div id="controls-hint">WASD — движение • Зажмите левую кнопку мыши для осмотра • E — лестница / дверь</div>
+    <div id="screamer"></div>
+    <canvas id="vhs-overlay"></canvas>
+    <div id="message">
+        <h1 id="msgTitle">💀</h1>
+        <p id="msgText"></p>
+        <button id="restartBtn">🔁 Заново</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // ------------------- НАСТРОЙКИ -------------------
+        const CELL = 3;
+        const HALF = CELL / 2;
+
+        // Карты этажей (все ключи теперь на первом этаже)
+        const map1Raw = [
+            "####################",
+            "#P....#........#....#",
+            "#..K..#........#....#",   // первый ключ
+            "#.....###.####.#....#",
+            "#.........#....#....#",
+            "#..K...R..#....#....#",   // второй ключ и робот
+            "#.........L....#....#",
+            "#..##.....#....#....#",
+            "#..#......#....#....#",
+            "#..#......#....#....#",
+            "#..#...####....#....#",
+            "#..#...........#....#",
+            "#....#..........#...#",
+            "#....#..........#...#",
+            "####################"
+        ];
+
+        const map2Raw = [
+            "####################",
+            "#....#.........#...#",
+            "#....#.........#...#",
+            "#....#..#######.#...#",
+            "#....#.........#.#..#",
+            "#....#.........#.#..#",   // убрали ключ
+            "#....#.........#.#..#",
+            "#....#..E......#.#..#",
+            "#....#.........#.#..#",
+            "#....#..#######.#.#..#",
+            "#....#...........#...#",
+            "#....#...........#...#",
+            "#....#...........L...#",
+            "#....#...........#...#",
+            "####################"
+        ];
+
+        function parseMap(raw) {
+            return raw.map(row => row.split(''));
+        }
+
+        const map1 = parseMap(map1Raw);
+        const map2 = parseMap(map2Raw);
+
+        function findPositions(map) {
+            let player = null, robot = null, stairs = [], exit = null, keys = [];
+            for (let r = 0; r < map.length; r++) {
+                for (let c = 0; c < map[0].length; c++) {
+                    const ch = map[r][c];
+                    if (ch === 'P') { player = { x: c, z: r }; map[r][c] = '.'; }
+                    if (ch === 'R') { robot = { x: c, z: r }; map[r][c] = '.'; }
+                    if (ch === 'L') stairs.push({ x: c, z: r });
+                    if (ch === 'E') exit = { x: c, z: r };
+                    if (ch === 'K') keys.push({ x: c, z: r, collected: false });
+                }
+            }
+            return { player, robot, stairs, exit, keys };
+        }
+
+        const pos1 = findPositions(map1);
+        const pos2 = findPositions(map2);
+
+        // ------------------- СЦЕНА -------------------
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x111122);
+        scene.fog = new THREE.Fog(0x111122, 15, 30);
+
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(pos1.player.x * CELL, 1.5, pos1.player.z * CELL);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // Освещение
+        const ambientLight = new THREE.AmbientLight(0x404060);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffeedd, 1);
+        dirLight.position.set(10, 20, 10);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        dirLight.shadow.camera.near = 0.1;
+        dirLight.shadow.camera.far = 50;
+        dirLight.shadow.camera.left = -30;
+        dirLight.shadow.camera.right = 30;
+        dirLight.shadow.camera.top = 30;
+        dirLight.shadow.camera.bottom = -30;
+        scene.add(dirLight);
+
+        const fillLight = new THREE.DirectionalLight(0x4466ff, 0.3);
+        fillLight.position.set(-10, 5, -10);
+        scene.add(fillLight);
+
+        const flashlight = new THREE.SpotLight(0xffeedd, 0.8);
+        flashlight.angle = 0.5;
+        flashlight.penumbra = 0.5;
+        flashlight.decay = 1;
+        flashlight.distance = 20;
+        flashlight.castShadow = true;
+        scene.add(flashlight);
+
+        // ------------------- ПОСТРОЕНИЕ ДОМА -------------------
+        function buildFloor(map, yOffset) {
+            const group = new THREE.Group();
+            const rows = map.length;
+            const cols = map[0].length;
+
+            const floorGeo = new THREE.PlaneGeometry(cols * CELL, rows * CELL);
+            const floorMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.8, metalness: 0.1 });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.position.set(cols * CELL / 2, yOffset, rows * CELL / 2);
+            floor.receiveShadow = true;
+            group.add(floor);
+
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.6, metalness: 0.2 });
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    if (map[r][c] === '#') {
+                        const wall = new THREE.Mesh(new THREE.BoxGeometry(CELL, 3, CELL), wallMat);
+                        wall.position.set(c * CELL + HALF, yOffset + 1.5, r * CELL + HALF);
+                        wall.castShadow = true;
+                        wall.receiveShadow = true;
+                        group.add(wall);
+                    }
+                }
+            }
+            return group;
+        }
+
+        const floor1Group = buildFloor(map1, 0);
+        scene.add(floor1Group);
+        const floor2Group = buildFloor(map2, 4);
+        scene.add(floor2Group);
+
+        const ceilMat = new THREE.MeshStandardMaterial({ color: 0x222222, transparent: true, opacity: 0.3, side: THREE.BackSide });
+        const ceil1 = new THREE.Mesh(new THREE.PlaneGeometry(20 * CELL, 15 * CELL), ceilMat);
+        ceil1.rotation.x = Math.PI / 2;
+        ceil1.position.set(10 * CELL, 3.9, 7.5 * CELL);
+        scene.add(ceil1);
+        const ceil2 = new THREE.Mesh(new THREE.PlaneGeometry(20 * CELL, 15 * CELL), ceilMat);
+        ceil2.rotation.x = Math.PI / 2;
+        ceil2.position.set(10 * CELL, 7.9, 7.5 * CELL);
+        scene.add(ceil2);
+
+        // ------------------- ОБЪЕКТЫ -------------------
+        const keyObjects = [];
+        let exitObject = null;
+        let robotObject = null;
+
+        function createKey(x, z, yOffset) {
+            const geo = new THREE.SphereGeometry(0.4, 16, 16);
+            const mat = new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0x442200, roughness: 0.3, metalness: 0.7 });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x * CELL + HALF, yOffset + 0.5, z * CELL + HALF);
+            mesh.castShadow = true;
+            mesh.userData = { collected: false, floor: yOffset };
+            return mesh;
+        }
+
+        function spawnKeys(pos, yOffset) {
+            pos.keys.forEach(k => {
+                if (!k.collected) {
+                    const key = createKey(k.x, k.z, yOffset);
+                    scene.add(key);
+                    keyObjects.push(key);
+                    key.userData.mapKey = k;
+                }
+            });
+        }
+        // Ключи только на первом этаже
+        spawnKeys(pos1, 0);
+
+        function createStairMarker(x, z, yOffset) {
+            const geo = new THREE.BoxGeometry(1, 0.2, 1);
+            const mat = new THREE.MeshStandardMaterial({ color: 0x8b6b4d, emissive: 0x332211 });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x * CELL + HALF, yOffset + 0.1, z * CELL + HALF);
+            mesh.userData.isStair = true;
+            mesh.userData.floor = yOffset;
+            return mesh;
+        }
+
+        function spawnStairs(pos, yOffset) {
+            pos.stairs.forEach(s => {
+                const stair = createStairMarker(s.x, s.z, yOffset);
+                scene.add(stair);
+            });
+        }
+        spawnStairs(pos1, 0);
+        spawnStairs(pos2, 4);
+
+        function createExit(x, z, yOffset) {
+            const group = new THREE.Group();
+            const frameMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a });
+            const frame = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.2, 0.3), frameMat);
+            frame.position.set(0, 1.1, 0);
+            group.add(frame);
+            const doorMat = new THREE.MeshStandardMaterial({ color: 0x3a7a3a, emissive: 0x112211 });
+            const door = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.8, 0.15), doorMat);
+            door.position.set(0, 0.9, 0.15);
+            group.add(door);
+            group.position.set(x * CELL + HALF, yOffset, z * CELL + HALF);
+            group.userData.isExit = true;
+            group.userData.floor = yOffset;
+            return group;
+        }
+        if (pos2.exit) {
+            exitObject = createExit(pos2.exit.x, pos2.exit.z, 4);
+            scene.add(exitObject);
+        }
+
+        function createRobot(x, z, yOffset) {
+            const group = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xcc3333, emissive: 0x330000 });
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), bodyMat);
+            body.position.y = 0.4;
+            group.add(body);
+            const headMat = new THREE.MeshStandardMaterial({ color: 0xcc3333, emissive: 0x220000 });
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), headMat);
+            head.position.y = 1.0;
+            group.add(head);
+            const eyeMat = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000 });
+            const eye1 = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), eyeMat);
+            eye1.position.set(-0.2, 1.1, 0.35);
+            group.add(eye1);
+            const eye2 = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), eyeMat);
+            eye2.position.set(0.2, 1.1, 0.35);
+            group.add(eye2);
+            const antMat = new THREE.MeshStandardMaterial({ color: 0x888888 });
+            const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.4), antMat);
+            ant.position.set(0, 1.4, 0);
+            group.add(ant);
+            const light = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 6), new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000 }));
+            light.position.set(0, 1.6, 0);
+            group.add(light);
+            group.position.set(x * CELL + HALF, yOffset + 0.2, z * CELL + HALF);
+            group.userData.floor = yOffset;
+            return group;
+        }
+        robotObject = createRobot(pos1.robot.x, pos1.robot.z, 0);
+        scene.add(robotObject);
+
+        // ------------------- VHS ЭФФЕКТ и ВИНЬЕТКА -------------------
+        const vhsCanvas = document.getElementById('vhs-overlay');
+        const vhsCtx = vhsCanvas.getContext('2d');
+        let vhsWidth, vhsHeight;
+
+        function resizeVHS() {
+            vhsCanvas.width = window.innerWidth;
+            vhsCanvas.height = window.innerHeight;
+            vhsWidth = vhsCanvas.width;
+            vhsHeight = vhsCanvas.height;
+        }
+        resizeVHS();
+        window.addEventListener('resize', resizeVHS);
+
+        function drawVHS() {
+            if (game.gameOver) return; // не рисуем, если игра завершена (чтобы не мешать сообщению)
+            const w = vhsWidth, h = vhsHeight;
+            vhsCtx.clearRect(0, 0, w, h);
+
+            // Шум (случайные пиксели)
+            const imageData = vhsCtx.createImageData(w, h);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                if (Math.random() < 0.08) { // 8% пикселей белые
+                    data[i] = 255;
+                    data[i+1] = 255;
+                    data[i+2] = 255;
+                    data[i+3] = 100 + Math.random() * 155;
+                } else {
+                    data[i+3] = 0;
+                }
+            }
+            vhsCtx.putImageData(imageData, 0, 0);
+
+            // Горизонтальные полосы (эффект VHS)
+            for (let i = 0; i < 10; i++) {
+                const y = Math.random() * h;
+                const height = 1 + Math.random() * 4;
+                vhsCtx.fillStyle = `rgba(255,255,255,${0.03 + Math.random() * 0.05})`;
+                vhsCtx.fillRect(0, y, w, height);
+            }
+
+            // Виньетка (радиальный градиент)
+            const gradient = vhsCtx.createRadialGradient(w/2, h/2, Math.min(w,h)*0.3, w/2, h/2, Math.max(w,h)*0.7);
+            gradient.addColorStop(0, 'rgba(0,0,0,0)');
+            gradient.addColorStop(0.5, 'rgba(0,0,0,0.1)');
+            gradient.addColorStop(1, 'rgba(0,0,0,0.65)');
+            vhsCtx.fillStyle = gradient;
+            vhsCtx.fillRect(0, 0, w, h);
+
+            // Иногда мерцание
+            if (Math.random() < 0.01) {
+                vhsCtx.fillStyle = `rgba(255,255,255,0.05)`;
+                vhsCtx.fillRect(0, 0, w, h);
+            }
+        }
+
+        // ------------------- УПРАВЛЕНИЕ (ручное) -------------------
+        let isLocked = false;
+        let yaw = 0;
+        let pitch = 0;
+        const sensitivity = 0.002;
+
+        const keyState = { w: false, a: false, s: false, d: false };
+
+        function lockPointer() {
+            renderer.domElement.requestPointerLock();
+        }
+
+        document.addEventListener('pointerlockchange', () => {
+            isLocked = document.pointerLockElement === renderer.domElement;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isLocked) return;
+            const movementX = e.movementX || 0;
+            const movementY = e.movementY || 0;
+            yaw -= movementX * sensitivity;
+            pitch -= movementY * sensitivity;
+            pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch));
+            const euler = new THREE.Euler(pitch, yaw, 0, 'YXZ');
+            camera.quaternion.setFromEuler(euler);
+        });
+
+        renderer.domElement.addEventListener('click', () => {
+            if (!isLocked && !game.gameOver) {
+                lockPointer();
+            }
+        });
+
+        const startBlock = document.getElementById('start-block');
+        startBlock.addEventListener('click', () => {
+            startBlock.style.display = 'none';
+            lockPointer();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            if (key === 'w' || key === 'a' || key === 's' || key === 'd') {
+                keyState[key] = true;
+                e.preventDefault();
+            }
+            if (key === 'e') {
+                const px = game.playerPos.x;
+                const pz = game.playerPos.z;
+                const floor = game.currentFloor;
+                const pos = floor === 1 ? pos1 : pos2;
+                if (pos.stairs.some(s => s.x === px && s.z === pz)) {
+                    game.changeFloor();
+                }
+                if (pos.exit && pos.exit.x === px && pos.exit.z === pz) {
+                    if (game.keysCollected === game.totalKeys) {
+                        game.win = true;
+                        game.gameOver = true;
+                        game.showMessage('🏆 ПОБЕДА!', 'Вы выбрались из дома с роботом!');
+                    }
+                }
+                e.preventDefault();
+            }
+            if (key === 'r' && game.gameOver) {
+                game.restart();
+            }
+        });
+        document.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            if (key === 'w' || key === 'a' || key === 's' || key === 'd') {
+                keyState[key] = false;
+                e.preventDefault();
+            }
+        });
+
+        // ------------------- ИГРОВАЯ ЛОГИКА -------------------
+        const game = {
+            currentFloor: 1,
+            playerPos: { x: pos1.player.x, z: pos1.player.z, floor: 1 },
+            robotPos: { x: pos1.robot.x, z: pos1.robot.z, floor: 1 },
+            robotTargetX: pos1.robot.x,
+            robotTargetZ: pos1.robot.z,
+            keysCollected: 0,
+            totalKeys: pos1.keys.length, // только на первом этаже
+            gameOver: false,
+            win: false,
+            frames: 0,
+
+            collectKey(keyMesh) {
+                if (keyMesh.userData.collected) return;
+                keyMesh.userData.collected = true;
+                const floor = keyMesh.userData.floor;
+                const pos = floor === 0 ? pos1 : pos2;
+                const k = pos.keys.find(k => k.x === Math.round((keyMesh.position.x - HALF) / CELL) &&
+                    k.z === Math.round((keyMesh.position.z - HALF) / CELL));
+                if (k) k.collected = true;
+                this.keysCollected++;
+                this.updateUI();
+                scene.remove(keyMesh);
+            },
+
+            changeFloor() {
+                const newFloor = this.currentFloor === 1 ? 2 : 1;
+                const newPos = newFloor === 1 ? pos1 : pos2;
+                const stair = newPos.stairs[0];
+                if (!stair) return;
+                this.playerPos.x = stair.x;
+                this.playerPos.z = stair.z;
+                this.playerPos.floor = newFloor;
+                this.currentFloor = newFloor;
+                const yOffset = newFloor === 1 ? 0 : 4;
+                camera.position.set(stair.x * CELL + HALF, 1.5 + yOffset, stair.z * CELL + HALF);
+                // Перемещаем робота на лестницу нового этажа (для простоты)
+                this.robotPos.x = stair.x;
+                this.robotPos.z = stair.z;
+                this.robotPos.floor = newFloor;
+                this.robotTargetX = stair.x;
+                this.robotTargetZ = stair.z;
+                this.updateRobotPosition();
+                this.updateUI();
+            },
+
+            updateRobotPosition() {
+                const yOffset = this.robotPos.floor === 1 ? 0 : 4;
+                // Плавное движение будет в цикле
+            },
+
+            moveRobot() {
+                if (this.gameOver) return;
+                const map = this.currentFloor === 1 ? map1 : map2;
+                const dx = Math.sign(this.playerPos.x - this.robotPos.x);
+                const dz = Math.sign(this.playerPos.z - this.robotPos.z);
+
+                const tryMove = (dx, dz) => {
+                    const newX = this.robotPos.x + dx;
+                    const newZ = this.robotPos.z + dz;
+                    if (newX < 0 || newX >= 20 || newZ < 0 || newZ >= 15) return false;
+                    if (map[newZ][newX] === '#') return false;
+                    const pos = this.currentFloor === 1 ? pos1 : pos2;
+                    if (pos.stairs.some(s => s.x === newX && s.z === newZ)) return false;
+                    this.robotTargetX = newX;
+                    this.robotTargetZ = newZ;
+                    return true;
+                };
+
+                let moved = false;
+                if (dx !== 0) moved = tryMove(dx, 0);
+                if (!moved && dz !== 0) moved = tryMove(0, dz);
+                if (!moved) {
+                    const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+                    const shuffled = dirs.sort(() => Math.random() - 0.5);
+                    for (let d of shuffled) {
+                        if (tryMove(d[0], d[1])) break;
+                    }
+                }
+                // Если не удалось сдвинуться, цель остаётся прежней
+            },
+
+            checkCollision() {
+                if (this.gameOver) return;
+                // Проверяем расстояние между игроком и роботом (в клетках)
+                const dist = Math.sqrt((this.playerPos.x - this.robotPos.x) ** 2 + (this.playerPos.z - this.robotPos.z) ** 2);
+                if (dist < 0.5 && this.playerPos.floor === this.robotPos.floor) {
+                    this.gameOver = true;
+                    // Скример!
+                    this.triggerScreamer();
+                    this.showMessage('💀 Вас поймали!', 'Робот настиг вас...');
+                }
+            },
+
+            triggerScreamer() {
+                const screamer = document.getElementById('screamer');
+                screamer.style.display = 'block';
+                setTimeout(() => {
+                    screamer.style.display = 'none';
+                }, 400);
+                // Можно добавить звук, но он может быть заблокирован
+            },
+
+            updateUI() {
+                document.getElementById('keyCount').textContent = this.keysCollected;
+                document.getElementById('floorDisplay').textContent = this.currentFloor;
+                document.getElementById('robotStatus').textContent = this.gameOver ? '💀' : '🔴';
+            },
+
+            showMessage(title, text) {
+                document.getElementById('msgTitle').textContent = title;
+                document.getElementById('msgText').textContent = text;
+                document.getElementById('message').style.display = 'block';
+                if (isLocked) document.exitPointerLock();
+            },
+
+            restart() {
+                this.currentFloor = 1;
+                this.playerPos.x = pos1.player.x;
+                this.playerPos.z = pos1.player.z;
+                this.playerPos.floor = 1;
+                this.robotPos.x = pos1.robot.x;
+                this.robotPos.z = pos1.robot.z;
+                this.robotPos.floor = 1;
+                this.robotTargetX = pos1.robot.x;
+                this.robotTargetZ = pos1.robot.z;
+                this.keysCollected = 0;
+                this.gameOver = false;
+                this.win = false;
+                pos1.keys.forEach(k => k.collected = false);
+                pos2.keys.forEach(k => k.collected = false);
+                this.keyObjects.forEach(k => scene.remove(k));
+                this.keyObjects.length = 0;
+                spawnKeys(pos1, 0);
+                camera.position.set(pos1.player.x * CELL + HALF, 1.5, pos1.player.z * CELL + HALF);
+                camera.quaternion.identity();
+                yaw = 0; pitch = 0;
+                // Обновляем позицию робота
+                robotObject.position.set(pos1.robot.x * CELL + HALF, 0.2, pos1.robot.z * CELL + HALF);
+                this.updateUI();
+                document.getElementById('message').style.display = 'none';
+                lockPointer();
+            }
+        };
+        game.keyObjects = keyObjects;
+
+        // ------------------- ИГРОВОЙ ЦИКЛ -------------------
+        function canMoveTo(x, z, floor) {
+            const map = floor === 1 ? map1 : map2;
+            const col = Math.round(x);
+            const row = Math.round(z);
+            if (col < 0 || col >= 20 || row < 0 || row >= 15) return false;
+            if (map[row][col] === '#') return false;
+            return true;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (!game.gameOver && isLocked) {
+                const speed = 0.05;
+                const forward = new THREE.Vector3(0, 0, -1);
+                forward.applyQuaternion(camera.quaternion);
+                forward.y = 0;
+                forward.normalize();
+                const right = new THREE.Vector3(1, 0, 0);
+                right.applyQuaternion(camera.quaternion);
+                right.y = 0;
+                right.normalize();
+
+                let moveX = 0, moveZ = 0;
+                if (keyState.w) { moveX += forward.x * speed; moveZ += forward.z * speed; }
+                if (keyState.s) { moveX -= forward.x * speed; moveZ -= forward.z * speed; }
+                if (keyState.a) { moveX -= right.x * speed; moveZ -= right.z * speed; }
+                if (keyState.d) { moveX += right.x * speed; moveZ += right.z * speed; }
+
+                if (moveX !== 0 || moveZ !== 0) {
+                    const newX = game.playerPos.x + moveX;
+                    const newZ = game.playerPos.z + moveZ;
+                    if (canMoveTo(newX, game.playerPos.z, game.currentFloor)) {
+                        game.playerPos.x = newX;
+                    }
+                    if (canMoveTo(game.playerPos.x, newZ, game.currentFloor)) {
+                        game.playerPos.z = newZ;
+                    }
+                    const yOffset = game.currentFloor === 1 ? 0 : 4;
+                    camera.position.set(game.playerPos.x * CELL + HALF, 1.5 + yOffset, game.playerPos.z * CELL + HALF);
+                }
+
+                // Сбор ключей
+                const yOffset = game.currentFloor === 1 ? 0 : 4;
+                const keyCollected = game.keyObjects.find(k =>
+                    Math.round((k.position.x - HALF) / CELL) === Math.round(game.playerPos.x) &&
+                    Math.round((k.position.z - HALF) / CELL) === Math.round(game.playerPos.z) &&
+                    k.userData.floor === yOffset &&
+                    !k.userData.collected
+                );
+                if (keyCollected) {
+                    game.collectKey(keyCollected);
+                }
+                game.checkCollision();
+
+                // Проверка выхода
+                const pos = game.currentFloor === 1 ? pos1 : pos2;
+                if (pos.exit && pos.exit.x === Math.round(game.playerPos.x) && pos.exit.z === Math.round(game.playerPos.z)) {
+                    if (game.keysCollected === game.totalKeys) {
+                        game.win = true;
+                        game.gameOver = true;
+                        game.showMessage('🏆 ПОБЕДА!', 'Вы выбрались из дома с роботом!');
+                    }
+                }
+
+                // Обновление фонарика
+                flashlight.position.copy(camera.position);
+                const target = new THREE.Vector3(0, 0, -1);
+                target.applyQuaternion(camera.quaternion);
+                target.add(camera.position);
+                flashlight.target.position.copy(target);
+                scene.add(flashlight.target);
+
+                // Плавное движение робота к цели
+                const robotSpeed = 0.03;
+                const dx = game.robotTargetX - game.robotPos.x;
+                const dz = game.robotTargetZ - game.robotPos.z;
+                const dist = Math.sqrt(dx*dx + dz*dz);
+                if (dist > 0.01) {
+                    const step = Math.min(robotSpeed, dist);
+                    game.robotPos.x += (dx / dist) * step;
+                    game.robotPos.z += (dz / dist) * step;
+                } else {
+                    game.robotPos.x = game.robotTargetX;
+                    game.robotPos.z = game.robotTargetZ;
+                }
+
+                // Обновление 3D позиции робота
+                const robotYOffset = game.robotPos.floor === 1 ? 0 : 4;
+                robotObject.position.set(game.robotPos.x * CELL + HALF, robotYOffset + 0.2, game.robotPos.z * CELL + HALF);
+                // Проверка столкновения после перемещения робота
+                game.checkCollision();
+            }
+
+            // Движение робота (обновление цели) — каждые 25 кадров
+            if (!game.gameOver) {
+                game.frames++;
+                if (game.frames % 25 === 0) {
+                    game.moveRobot();
+                }
+            }
+
+            // Анимация ключей
+            game.keyObjects.forEach(k => {
+                if (!k.userData.collected) {
+                    k.rotation.y += 0.02;
+                }
+            });
+
+            // VHS эффект
+            drawVHS();
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // ------------------- РЕСТАРТ -------------------
+        document.getElementById('restartBtn').addEventListener('click', () => {
+            game.restart();
+        });
+
+        // ------------------- ИНИЦИАЛИЗАЦИЯ UI -------------------
+        game.updateUI();
+
+        // Обработка изменения размера
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            resizeVHS();
+        });
+
+        console.log('🎮 3D игра "Робот в доме" с VHS-эффектом и скримером!');
+        console.log('Управление: WASD — движение, зажмите мышь для осмотра, E — лестница / дверь.');
+        console.log('Соберите оба ключа на первом этаже и найдите выход на втором.');
+        console.log('Остерегайтесь робота — он бежит за вами!');
+    </script>
+</body>
+</html>
