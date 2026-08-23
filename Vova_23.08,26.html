@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Истребитель · Город Зомби 3D</title>
+  <style>
+    body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0a0a0a; user-select: none; }
+    #info {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      color: #fff;
+      background: rgba(0,0,0,0.6);
+      padding: 10px 20px;
+      border-radius: 12px;
+      backdrop-filter: blur(4px);
+      pointer-events: none;
+      z-index: 10;
+      border-left: 4px solid #00ccff;
+      font-family: 'Courier New', monospace;
+    }
+    #info h1 { margin: 0; font-size: 1.2rem; font-weight: 400; }
+    #info h1 span { color: #00ccff; font-weight: 600; }
+    #stats {
+      position: absolute;
+      top: 80px;
+      left: 20px;
+      color: #ddd;
+      background: rgba(0,0,0,0.7);
+      padding: 12px 20px;
+      border-radius: 12px;
+      backdrop-filter: blur(4px);
+      border: 1px solid #333;
+      font-size: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      pointer-events: none;
+      z-index: 10;
+      font-family: 'Courier New', monospace;
+      min-width: 140px;
+    }
+    #stats div { display: flex; justify-content: space-between; }
+    #stats span { color: #00ccff; font-weight: bold; }
+    #crosshair {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 40px; height: 40px;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 20;
+      opacity: 0.8;
+    }
+    #crosshair::before, #crosshair::after {
+      content: '';
+      position: absolute;
+      background: #00ff88;
+      border-radius: 2px;
+      box-shadow: 0 0 12px #00ff88;
+    }
+    #crosshair::before { width: 2px; height: 100%; left: 50%; transform: translateX(-50%); }
+    #crosshair::after { width: 100%; height: 2px; top: 50%; transform: translateY(-50%); }
+    .dot {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 4px; height: 4px;
+      background: #ff3333;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 16px #ff3333;
+    }
+    #controls-hint {
+      position: absolute;
+      bottom: 30px;
+      right: 30px;
+      color: #aaa;
+      background: rgba(0,0,0,0.6);
+      padding: 10px 18px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      backdrop-filter: blur(4px);
+      border: 1px solid #333;
+      pointer-events: none;
+      z-index: 10;
+      font-family: 'Courier New', monospace;
+      line-height: 1.6;
+    }
+    #controls-hint kbd {
+      background: #222;
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid #444;
+      color: #00ccff;
+    }
+    #gameover {
+      display: none;
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(8px);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      color: white;
+    }
+    #gameover.show { display: flex; }
+    #gameover h1 {
+      font-size: 4rem;
+      color: #ff3333;
+      text-shadow: 0 0 40px #ff0000;
+      margin: 0;
+      font-family: 'Courier New', monospace;
+    }
+    #gameover p { font-size: 1.5rem; margin: 10px 0; font-family: 'Courier New', monospace; }
+    #restart-btn {
+      margin-top: 30px;
+      padding: 14px 48px;
+      font-size: 1.4rem;
+      background: #00ccff;
+      border: none;
+      border-radius: 12px;
+      color: #1a1a1a;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.2s;
+      box-shadow: 0 0 35px #00ccff66;
+      font-family: 'Courier New', monospace;
+    }
+    #restart-btn:hover { background: #33ddff; transform: scale(1.05); box-shadow: 0 0 60px #00ccff; }
+    #boss-indicator {
+      position: absolute;
+      top: 50%;
+      right: 30px;
+      transform: translateY(-50%);
+      color: #ff4400;
+      font-family: 'Courier New', monospace;
+      font-size: 1.2rem;
+      background: rgba(0,0,0,0.7);
+      padding: 12px 20px;
+      border-radius: 12px;
+      border: 2px solid #ff4400;
+      display: none;
+      z-index: 10;
+      text-align: center;
+      min-width: 120px;
+      box-shadow: 0 0 30px #ff440044;
+    }
+    #boss-indicator .hp-bar {
+      width: 100%;
+      height: 8px;
+      background: #222;
+      border-radius: 4px;
+      margin-top: 6px;
+      overflow: hidden;
+    }
+    #boss-indicator .hp-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #ff2200, #ff8800);
+      border-radius: 4px;
+      transition: width 0.2s;
+    }
+    #explosion-overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 30;
+      background: radial-gradient(circle, rgba(255,200,50,0) 0%, rgba(255,100,0,0) 100%);
+      transition: all 0.1s;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="info"><h1>✈️ <span>ИСТРЕБИТЕЛЬ</span> · город зомби</h1></div>
+  <div id="stats">
+    <div>💀 Очки: <span id="score">0</span></div>
+    <div>❤️ Жизни: <span id="health">100</span></div>
+    <div>🎯 Убийств: <span id="kills">0</span></div>
+  </div>
+
+  <div id="boss-indicator">
+    <div>👑 БОСС</div>
+    <div class="hp-bar"><div class="hp-fill" id="boss-hp-fill" style="width:100%"></div></div>
+  </div>
+
+  <div id="crosshair"><div class="dot"></div></div>
+  <div id="explosion-overlay"></div>
+
+  <div id="controls-hint">
+    <kbd>W A S D</kbd> — управление<br>
+    <kbd>Space</kbd> — подъём · <kbd>Shift</kbd> — снижение<br>
+    <kbd>Зажат ЛКМ</kbd> — пулемёт
+  </div>
+
+  <div id="gameover">
+    <h1>💥 СБИТ</h1>
+    <p>Вас уничтожили...</p>
+    <p style="font-size:1.2rem; opacity:0.7;">Очки: <span id="final-score">0</span></p>
+    <button id="restart-btn">🔄 ВОЗРОДИТЬСЯ</button>
+  </div>
+
+  <script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.126.0/build/three.module.js" } }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+
+    // ---------- ИНИЦИАЛИЗАЦИЯ ----------
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a2a3a);
+    scene.fog = new THREE.Fog(0x1a2a3a, 150, 300);
+
+    const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 400);
+    camera.position.set(0, 15, -20);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
+
+    // ---------- СВЕТ ----------
+    const ambient = new THREE.AmbientLight(0x445566, 0.6);
+    scene.add(ambient);
+    const sun = new THREE.DirectionalLight(0xffeedd, 1.2);
+    sun.position.set(50, 80, 30);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 2048;
+    sun.shadow.mapSize.height = 2048;
+    const d = 150;
+    sun.shadow.camera.left = -d; sun.shadow.camera.right = d;
+    sun.shadow.camera.top = d; sun.shadow.camera.bottom = -d;
+    sun.shadow.camera.near = 1; sun.shadow.camera.far = 200;
+    scene.add(sun);
+    const fill = new THREE.DirectionalLight(0x88aaff, 0.3);
+    fill.position.set(-30, 20, -40);
+    scene.add(fill);
+
+    // ---------- ГОРОД ----------
+    const citySize = 200;
+    const buildings = [];
+
+    function createBuilding(x, z, w, h, d, color) {
+      const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.3 });
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      mesh.position.set(x, h/2, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+      buildings.push(mesh);
+      
+      const winMat = new THREE.MeshStandardMaterial({ color: 0xffff88, emissive: 0x442200 });
+      for (let i = 0; i < 4; i++) {
+        const wx = (Math.random()-0.5) * w * 0.6;
+        const wz = (Math.random()-0.5) * d * 0.6;
+        const wy = 1 + Math.random() * (h - 2);
+        if (Math.random() > 0.4) {
+          const win = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.5), winMat);
+          win.position.set(x + wx, wy, z + wz);
+          win.rotation.y = Math.random() * Math.PI * 2;
+          scene.add(win);
+        }
+      }
+      return mesh;
+    }
+
+    for (let i = -citySize/2; i < citySize/2; i += 10 + Math.random()*8) {
+      for (let j = -citySize/2; j < citySize/2; j += 10 + Math.random()*8) {
+        if (Math.abs(i) < 8 && Math.abs(j) < 8) continue;
+        const w = 3 + Math.random() * 6;
+        const d = 3 + Math.random() * 6;
+        const h = 3 + Math.random() * 25;
+        const color = new THREE.Color().setHSL(0.1 + Math.random()*0.1, 0.2, 0.2 + Math.random()*0.3);
+        createBuilding(i + (Math.random()-0.5)*2, j + (Math.random()-0.5)*2, w, h, d, color);
+      }
+    }
+
+    const roadMat = new THREE.MeshStandardMaterial({ color: 0x2a2a3a, roughness: 0.9 });
+    for (let i = -citySize/2; i <= citySize/2; i += 12) {
+      const road = new THREE.Mesh(new THREE.PlaneGeometry(2, citySize), roadMat);
+      road.rotation.x = -Math.PI/2;
+      road.position.set(i, 0.1, 0);
+      scene.add(road);
+      const road2 = new THREE.Mesh(new THREE.PlaneGeometry(citySize, 2), roadMat);
+      road2.rotation.x = -Math.PI/2;
+      road2.position.set(0, 0.1, i);
+      scene.add(road2);
+    }
+
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0x1a2a1a, roughness: 0.9 });
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(citySize*1.5, citySize*1.5), groundMat);
+    ground.rotation.x = -Math.PI/2;
+    ground.position.y = -0.1;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // ---------- ИСТРЕБИТЕЛЬ (ПОВЕРНУТ) ----------
+    const fighter = new THREE.Group();
+    
+    // Фюзеляж
+    const fuselageMat = new THREE.MeshStandardMaterial({ color: 0x8899aa, metalness: 0.8, roughness: 0.3 });
+    const fuselage = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 4, 8), fuselageMat);
+    fuselage.rotation.x = Math.PI/2; // Повернут вдоль оси X
+    fuselage.position.set(0, 0.1, 0);
+    fuselage.castShadow = true;
+    fighter.add(fuselage);
+
+    // Кабина
+    const cockpitMat = new THREE.MeshStandardMaterial({ color: 0x88ccff, emissive: 0x224466, transparent: true, opacity: 0.6 });
+    const cockpit = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 6), cockpitMat);
+    cockpit.position.set(0.3, 0.2, 1.2);
+    cockpit.scale.set(0.5, 0.5, 0.8);
+    fighter.add(cockpit);
+
+    // Крылья
+    const wingMat = new THREE.MeshStandardMaterial({ color: 0x778899, metalness: 0.7, roughness: 0.4 });
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.05, 0.4), wingMat);
+    wing.position.set(0, 0, -1.0);
+    wing.castShadow = true;
+    fighter.add(wing);
+    const wing2 = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.05, 0.4), wingMat);
+    wing2.position.set(0, 0, 1.0);
+    wing2.castShadow = true;
+    fighter.add(wing2);
+
+    // Хвост
+    const tailMat = new THREE.MeshStandardMaterial({ color: 0x778899, metalness: 0.6 });
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.6, 0.3), tailMat);
+    tail.position.set(0, 0.3, -2.0);
+    fighter.add(tail);
+    const tailH = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.7), tailMat);
+    tailH.position.set(0, 0, -2.0);
+    fighter.add(tailH);
+
+    // Двигатель
+    const engineMat = new THREE.MeshStandardMaterial({ color: 0x445566, metalness: 0.9, emissive: 0x224466 });
+    const engine = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.5, 0.6, 8), engineMat);
+    engine.rotation.x = Math.PI/2;
+    engine.position.set(0, 0.1, -2.3);
+    fighter.add(engine);
+
+    // Огни
+    const lightMat = new THREE.MeshStandardMaterial({ color: 0xff4400, emissive: 0xff2200 });
+    const light = new THREE.Mesh(new THREE.SphereGeometry(0.08, 4), lightMat);
+    light.position.set(0.2, 0, -2.4);
+    fighter.add(light);
+    const light2 = new THREE.Mesh(new THREE.SphereGeometry(0.08, 4), lightMat);
+    light2.position.set(-0.2, 0, -2.4);
+    fighter.add(light2);
+
+    fighter.scale.set(0.8, 0.8, 0.8);
+    scene.add(fighter);
+    fighter.position.set(0, 20, 0);
+
+    // ---------- ИГРОВОЙ СОСТОЯНИЕ ----------
+    const player = {
+      health: 100,
+      score: 0,
+      kills: 0,
+      speed: 0.3,
+      rotSpeed: 0.025,
+      pitchSpeed: 0.02
+    };
+
+    // ---------- ЗОМБИ ----------
+    const zombies = [];
+    const maxZombies = 60;
+    const zombieSpawnRadius = 80;
+
+    function createZombie(size = 1) {
+      const group = new THREE.Group();
+      const color = 0x4a6a3a + Math.floor(Math.random() * 0x223322);
+      const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.8 });
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.6*size, 0.8*size, 1.4*size, 6), bodyMat);
+      body.position.y = 0.7*size;
+      body.castShadow = true;
+      group.add(body);
+      
+      const headMat = new THREE.MeshStandardMaterial({ color: 0x7a8a6a, roughness: 0.7 });
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.4*size, 6), headMat);
+      head.position.y = 1.6*size;
+      head.castShadow = true;
+      group.add(head);
+      
+      const eyeMat = new THREE.MeshStandardMaterial({ color: 0xff3333, emissive: 0x550000 });
+      const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.1*size, 4), eyeMat);
+      eyeL.position.set(-0.15*size, 1.7*size, 0.35*size);
+      group.add(eyeL);
+      const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.1*size, 4), eyeMat);
+      eyeR.position.set(0.15*size, 1.7*size, 0.35*size);
+      group.add(eyeR);
+      
+      const armMat = new THREE.MeshStandardMaterial({ color: 0x5a7a4a });
+      const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.1*size, 0.1*size, 0.7*size), armMat);
+      armL.position.set(-0.7*size, 1.0*size, 0);
+      armL.rotation.z = 0.3;
+      armL.castShadow = true;
+      group.add(armL);
+      const armR = new THREE.Mesh(new THREE.CylinderGeometry(0.1*size, 0.1*size, 0.7*size), armMat);
+      armR.position.set(0.7*size, 1.0*size, 0);
+      armR.rotation.z = -0.3;
+      armR.castShadow = true;
+      group.add(armR);
+      
+      const legMat = new THREE.MeshStandardMaterial({ color: 0x3a5a3a });
+      const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.15*size, 0.15*size, 0.6*size), legMat);
+      legL.position.set(-0.25*size, 0.3*size, 0);
+      legL.castShadow = true;
+      group.add(legL);
+      const legR = new THREE.Mesh(new THREE.CylinderGeometry(0.15*size, 0.15*size, 0.6*size), legMat);
+      legR.position.set(0.25*size, 0.3*size, 0);
+      legR.castShadow = true;
+      group.add(legR);
+      
+      const angle = Math.random() * Math.PI * 2;
+      const radius = zombieSpawnRadius * 0.5 + Math.random() * zombieSpawnRadius * 0.5;
+      group.position.set(
+        Math.cos(angle) * radius,
+        0,
+        Math.sin(angle) * radius
+      );
+      group.rotation.y = Math.random() * Math.PI * 2;
+      scene.add(group);
+      
+      const isBoss = Math.random() < 0.08 && size === 1;
+      const bossSize = isBoss ? 2.5 + Math.random() * 1.5 : 1;
+      
+      if (isBoss) {
+        group.scale.set(bossSize, bossSize, bossSize);
+        const crownMat = new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0x442200 });
+        const crown = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.08, 6, 8), crownMat);
+        crown.position.y = 2.0 * bossSize;
+        crown.rotation.x = Math.PI/2;
+        group.add(crown);
+      }
+      
+      const zombieData = {
+        mesh: group,
+        speed: (0.02 + Math.random() * 0.03) / (isBoss ? 0.6 : 1),
+        health: isBoss ? 10 + Math.floor(Math.random() * 10) : 1,
+        maxHealth: isBoss ? 10 + Math.floor(Math.random() * 10) : 1,
+        isBoss: isBoss,
+        size: isBoss ? bossSize : size,
+        attackCooldown: 0
+      };
+      zombies.push(zombieData);
+      return zombieData;
+    }
+
+    for (let i = 0; i < 25; i++) createZombie();
+
+    // ---------- ПУЛЕМЕТ ----------
+    let isShooting = false;
+    let shootCooldown = 0;
+    const bullets = [];
+
+    function shootBullet() {
+      if (shootCooldown > 0) return;
+      shootCooldown = 4;
+      
+      // Направление вперед от истребителя (ось -Z)
+      const dir = new THREE.Vector3(0, 0, -1);
+      dir.applyQuaternion(fighter.quaternion);
+      
+      const start = fighter.position.clone().add(dir.clone().multiplyScalar(3));
+      start.y += 0.2;
+      
+      const bulletMat = new THREE.MeshBasicMaterial({ color: 0xffaa44 });
+      const bullet = new THREE.Mesh(new THREE.SphereGeometry(0.15, 4), bulletMat);
+      bullet.position.copy(start);
+      scene.add(bullet);
+      
+      const speed = 1.8;
+      const dirNorm = dir.clone().normalize();
+      const data = { mesh: bullet, dir: dirNorm, speed: speed, life: 3 };
+      bullets.push(data);
+      
+      const raycaster = new THREE.Raycaster(start, dirNorm);
+      raycaster.far = 120;
+      const targets = zombies.map(z => z.mesh);
+      const intersects = raycaster.intersectObjects(targets, true);
+      
+      if (intersects.length > 0) {
+        let hitZombie = null;
+        let obj = intersects[0].object;
+        let parent = obj;
+        while (parent.parent && !targets.includes(parent)) {
+          parent = parent.parent;
+        }
+        if (targets.includes(parent)) {
+          hitZombie = zombies.find(z => z.mesh === parent);
+        }
+        if (hitZombie) {
+          hitZombie.health -= 1;
+          createHitEffect(hitZombie.mesh.position.clone());
+          if (hitZombie.health <= 0) {
+            scene.remove(hitZombie.mesh);
+            const idx = zombies.indexOf(hitZombie);
+            if (idx !== -1) zombies.splice(idx, 1);
+            player.kills++;
+            const points = hitZombie.isBoss ? 50 : 10;
+            player.score += points;
+            document.getElementById('score').textContent = player.score;
+            document.getElementById('kills').textContent = player.kills;
+            
+            if (hitZombie.isBoss) {
+              document.getElementById('boss-indicator').style.display = 'none';
+              player.health = Math.min(100, player.health + 10);
+              document.getElementById('health').textContent = player.health;
+            }
+            
+            if (zombies.length < maxZombies) createZombie();
+          } else {
+            if (hitZombie.isBoss) {
+              const hpPercent = (hitZombie.health / hitZombie.maxHealth) * 100;
+              document.getElementById('boss-hp-fill').style.width = hpPercent + '%';
+              document.getElementById('boss-indicator').style.display = 'block';
+            }
+          }
+        }
+      }
+    }
+
+    function createHitEffect(position) {
+      const flashMat = new THREE.MeshBasicMaterial({ color: 0xffff88, transparent: true, opacity: 0.8 });
+      const flash = new THREE.Mesh(new THREE.SphereGeometry(0.4, 6), flashMat);
+      flash.position.copy(position);
+      flash.position.y += 1;
+      scene.add(flash);
+      let life = 0.3;
+      const update = () => {
+        life -= 0.02;
+        flash.scale.multiplyScalar(1.1);
+        flash.material.opacity = life * 3;
+        if (life <= 0) { scene.remove(flash); return; }
+        requestAnimationFrame(update);
+      };
+      update();
+    }
+
+    // ---------- ВЗРЫВ ----------
+    function createExplosion(position, size = 1) {
+      // Визуальный взрыв
+      const colors = [0xff4400, 0xff8800, 0xffff44, 0xff2200];
+      for (let i = 0; i < 40 * size; i++) {
+        const mat = new THREE.MeshBasicMaterial({ 
+          color: colors[Math.floor(Math.random() * colors.length)],
+          transparent: true,
+          opacity: 0.8
+        });
+        const particle = new THREE.Mesh(
+          new THREE.SphereGeometry(0.2 + Math.random() * 0.6, 4),
+          mat
+        );
+        particle.position.copy(position);
+        particle.position.x += (Math.random() - 0.5) * 2;
+        particle.position.z += (Math.random() - 0.5) * 2;
+        particle.position.y += Math.random() * 2;
+        const vel = new THREE.Vector3(
+          (Math.random() - 0.5) * 6,
+          Math.random() * 6,
+          (Math.random() - 0.5) * 6
+        );
+        scene.add(particle);
+        
+        let life = 2 + Math.random() * 1.5;
+        const updateParticle = () => {
+          life -= 0.02;
+          particle.position.add(vel.clone().multiplyScalar(0.02));
+          vel.y -= 0.05;
+          particle.material.opacity = life / 3 * 0.8;
+          particle.scale.multiplyScalar(1.01);
+          if (life <= 0) { scene.remove(particle); return; }
+          requestAnimationFrame(updateParticle);
+        };
+        updateParticle();
+      }
+      
+      // Вспышка
+      const flash = new THREE.Mesh(
+        new THREE.SphereGeometry(3 * size, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0xffff88, transparent: true, opacity: 0.7 })
+      );
+      flash.position.copy(position);
+      flash.position.y += 1;
+      scene.add(flash);
+      let flashLife = 0.5;
+      const updateFlash = () => {
+        flashLife -= 0.02;
+        flash.scale.multiplyScalar(1.05);
+        flash.material.opacity = flashLife * 1.4;
+        if (flashLife <= 0) { scene.remove(flash); return; }
+        requestAnimationFrame(updateFlash);
+      };
+      updateFlash();
+      
+      // Эффект на экране
+      const overlay = document.getElementById('explosion-overlay');
+      overlay.style.background = 'radial-gradient(circle, rgba(255,200,50,0.6) 0%, rgba(255,100,0,0.4) 100%)';
+      setTimeout(() => {
+        overlay.style.background = 'radial-gradient(circle, rgba(255,200,50,0) 0%, rgba(255,100,0,0) 100%)';
+      }, 300);
+      
+      // Ударная волна (земля)
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(0.5, 0.8, 16),
+        new THREE.MeshBasicMaterial({ color: 0xff8844, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
+      );
+      ring.rotation.x = -Math.PI/2;
+      ring.position.copy(position);
+      ring.position.y = 0.1;
+      scene.add(ring);
+      let ringLife = 1;
+      const updateRing = () => {
+        ringLife -= 0.02;
+        ring.scale.multiplyScalar(1.08);
+        ring.material.opacity = ringLife * 0.5;
+        if (ringLife <= 0) { scene.remove(ring); return; }
+        requestAnimationFrame(updateRing);
+      };
+      updateRing();
+    }
+
+    // ---------- УПРАВЛЕНИЕ ----------
+    const keys = { w: false, a: false, s: false, d: false, space: false, shift: false };
+    document.addEventListener('keydown', (e) => {
+      switch(e.code) {
+        case 'KeyW': keys.w = true; e.preventDefault(); break;
+        case 'KeyA': keys.a = true; e.preventDefault(); break;
+        case 'KeyS': keys.s = true; e.preventDefault(); break;
+        case 'KeyD': keys.d = true; e.preventDefault(); break;
+        case 'Space': keys.space = true; e.preventDefault(); break;
+        case 'ShiftLeft': keys.shift = true; e.preventDefault(); break;
+      }
+    });
+    document.addEventListener('keyup', (e) => {
+      switch(e.code) {
+        case 'KeyW': keys.w = false; e.preventDefault(); break;
+        case 'KeyA': keys.a = false; e.preventDefault(); break;
+        case 'KeyS': keys.s = false; e.preventDefault(); break;
+        case 'KeyD': keys.d = false; e.preventDefault(); break;
+        case 'Space': keys.space = false; e.preventDefault(); break;
+        case 'ShiftLeft': keys.shift = false; e.preventDefault(); break;
+      }
+    });
+
+    renderer.domElement.addEventListener('mousedown', (e) => {
+      if (e.button === 0) {
+        isShooting = true;
+        if (!document.pointerLockElement) {
+          renderer.domElement.requestPointerLock();
+        }
+      }
+    });
+    renderer.domElement.addEventListener('mouseup', (e) => {
+      if (e.button === 0) isShooting = false;
+    });
+    renderer.domElement.addEventListener('mouseleave', () => {
+      isShooting = false;
+    });
+
+    let isLocked = false;
+    document.addEventListener('pointerlockchange', () => {
+      isLocked = document.pointerLockElement === renderer.domElement;
+    });
+
+    document.addEventListener('mousemove', (event) => {
+      if (!isLocked) return;
+      const movementX = event.movementX || 0;
+      const movementY = event.movementY || 0;
+      
+      fighter.rotation.y -= movementX * 0.002;
+      fighter.rotation.x -= movementY * 0.002;
+      fighter.rotation.x = Math.max(-0.8, Math.min(0.8, fighter.rotation.x));
+    });
+
+    // ---------- ОБНОВЛЕНИЕ ----------
+    let explosionCooldown = 0;
+
+    function updatePlayer() {
+      // Движение
+      const forward = new THREE.Vector3(0, 0, -1);
+      forward.applyQuaternion(fighter.quaternion);
+      forward.normalize();
+      
+      const right = new THREE.Vector3(1, 0, 0);
+      right.applyQuaternion(fighter.quaternion);
+      right.normalize();
+      
+      const up = new THREE.Vector3(0, 1, 0);
+      
+      const move = new THREE.Vector3(0, 0, 0);
+      if (keys.w) move.add(forward);
+      if (keys.s) move.sub(forward);
+      if (keys.d) move.add(right);
+      if (keys.a) move.sub(right);
+      if (keys.space) move.add(up);
+      if (keys.shift) move.sub(up);
+      
+      if (move.length() > 0) {
+        move.normalize().multiplyScalar(player.speed);
+        fighter.position.add(move);
+      }
+      
+      if (!keys.space && !keys.shift) {
+        fighter.position.y -= 0.02;
+      }
+      
+      // Проверка столкновения с землей
+      if (fighter.position.y < 1.5) {
+        // ВЗРЫВ при касании земли
+        if (explosionCooldown <= 0) {
+          createExplosion(fighter.position.clone(), 2);
+          player.health -= 30;
+          document.getElementById('health').textContent = Math.max(0, player.health);
+          explosionCooldown = 30;
+          
+          if (player.health <= 0) {
+            gameOver();
+          }
+        }
+        fighter.position.y = 1.5;
+        // Отталкиваем вверх
+        fighter.position.y += 0.5;
+      }
+      if (explosionCooldown > 0) explosionCooldown--;
+      
+      if (fighter.position.y > 60) fighter.position.y = 60;
+      
+      const limit = citySize * 0.7;
+      if (Math.abs(fighter.position.x) > limit) {
+        fighter.position.x = Math.sign(fighter.position.x) * limit;
+      }
+      if (Math.abs(fighter.position.z) > limit) {
+        fighter.position.z = Math.sign(fighter.position.z) * limit;
+      }
+      
+      // Камера
+      const camOffset = new THREE.Vector3(0, 1.5, 5);
+      camOffset.applyQuaternion(fighter.quaternion);
+      camera.position.copy(fighter.position).add(camOffset);
+      camera.lookAt(fighter.position);
+    }
+
+    function updateZombies() {
+      const fighterPos = fighter.position.clone();
+      fighterPos.y = 0;
+      
+      zombies.forEach(z => {
+        const pos = z.mesh.position;
+        const dir = new THREE.Vector3().copy(fighterPos).sub(pos);
+        dir.y = 0;
+        const len = dir.length();
+        
+        if (len > 0.5 && len < 150) {
+          dir.normalize();
+          pos.x += dir.x * z.speed;
+          pos.z += dir.z * z.speed;
+          z.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+        }
+        
+        const time = Date.now() / 500;
+        z.mesh.position.y = Math.sin(time + pos.x + pos.z) * 0.03;
+        
+        if (len < 3.0 && fighter.position.y < 5) {
+          if (z.attackCooldown <= 0) {
+            player.health -= z.isBoss ? 5 : 1;
+            document.getElementById('health').textContent = Math.max(0, player.health);
+            z.attackCooldown = 30;
+            if (player.health <= 0) gameOver();
+          }
+        }
+        if (z.attackCooldown > 0) z.attackCooldown--;
+      });
+    }
+
+    function updateBullets() {
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        b.mesh.position.add(b.dir.clone().multiplyScalar(b.speed));
+        b.life -= 0.02;
+        if (b.life <= 0 || b.mesh.position.length() > 200) {
+          scene.remove(b.mesh);
+          bullets.splice(i, 1);
+        }
+      }
+    }
+
+    // ---------- GAME OVER ----------
+    function gameOver() {
+      document.getElementById('final-score').textContent = player.score;
+      document.getElementById('gameover').classList.add('show');
+      if (document.pointerLockElement) document.exitPointerLock();
+    }
+
+    // ---------- РЕСТАРТ ----------
+    document.getElementById('restart-btn').addEventListener('click', () => {
+      zombies.forEach(z => scene.remove(z.mesh));
+      zombies.length = 0;
+      bullets.forEach(b => scene.remove(b.mesh));
+      bullets.length = 0;
+      
+      player.health = 100;
+      player.score = 0;
+      player.kills = 0;
+      document.getElementById('health').textContent = 100;
+      document.getElementById('score').textContent = 0;
+      document.getElementById('kills').textContent = 0;
+      document.getElementById('boss-indicator').style.display = 'none';
+      document.getElementById('gameover').classList.remove('show');
+      
+      fighter.position.set(0, 20, 0);
+      fighter.rotation.set(0, 0, 0);
+      
+      for (let i = 0; i < 25; i++) createZombie();
+      
+      renderer.domElement.requestPointerLock();
+    });
+
+    // ---------- АНИМАЦИЯ ----------
+    function animate() {
+      requestAnimationFrame(animate);
+      
+      if (isShooting && isLocked) {
+        shootBullet();
+      }
+      if (shootCooldown > 0) shootCooldown--;
+      
+      updatePlayer();
+      updateZombies();
+      updateBullets();
+      
+      if (zombies.length < maxZombies && Math.random() < 0.01) {
+        createZombie();
+        if (Math.random() < 0.05 && zombies.filter(z => z.isBoss).length < 3) {
+          const boss = createZombie();
+          boss.isBoss = true;
+          boss.health = 15 + Math.floor(Math.random() * 15);
+          boss.maxHealth = boss.health;
+          boss.size = 2.5 + Math.random() * 1.5;
+          boss.mesh.scale.set(boss.size, boss.size, boss.size);
+          document.getElementById('boss-indicator').style.display = 'block';
+          document.getElementById('boss-hp-fill').style.width = '100%';
+        }
+      }
+      
+      const activeBoss = zombies.find(z => z.isBoss && z.health > 0);
+      if (activeBoss) {
+        document.getElementById('boss-indicator').style.display = 'block';
+        const hp = (activeBoss.health / activeBoss.maxHealth) * 100;
+        document.getElementById('boss-hp-fill').style.width = hp + '%';
+      } else {
+        document.getElementById('boss-indicator').style.display = 'none';
+      }
+      
+      // Дым
+      if (Math.random() < 0.3) {
+        const smokeMat = new THREE.MeshBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.2 });
+        const smoke = new THREE.Mesh(new THREE.SphereGeometry(0.2 + Math.random()*0.3, 4), smokeMat);
+        const back = new THREE.Vector3(0, 0, 1);
+        back.applyQuaternion(fighter.quaternion);
+        smoke.position.copy(fighter.position).add(back.clone().multiplyScalar(3));
+        smoke.position.y -= 0.2;
+        scene.add(smoke);
+        let life = 1;
+        const updateSmoke = () => {
+          life -= 0.02;
+          smoke.scale.multiplyScalar(1.05);
+          smoke.material.opacity = life * 0.2;
+          if (life <= 0) { scene.remove(smoke); return; }
+          requestAnimationFrame(updateSmoke);
+        };
+        updateSmoke();
+      }
+      
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    renderer.domElement.addEventListener('click', () => {
+      if (!isLocked) renderer.domElement.requestPointerLock();
+    });
+
+    console.log('✈️ Истребитель в городе! Модель развернута, при ударе о землю - взрыв!');
+  </script>
+</body>
+</html>
