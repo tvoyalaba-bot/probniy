@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Мотылёк и Лампочка — бесконечный прыжок</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            background: #0a0a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            overflow: hidden;
+        }
+        .game-wrapper {
+            background: linear-gradient(180deg, #0d0d2b, #1a1a3e);
+            border-radius: 24px;
+            padding: 20px 30px 30px 30px;
+            box-shadow: 0 0 80px rgba(100, 80, 255, 0.15), inset 0 0 60px rgba(80, 60, 200, 0.05);
+            border: 1px solid rgba(120, 100, 255, 0.12);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 8px 16px 8px;
+            color: #d4d0ff;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            font-size: 18px;
+            text-shadow: 0 0 20px rgba(100, 80, 255, 0.2);
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .lives {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        .life-icon {
+            font-size: 22px;
+            transition: all 0.3s;
+        }
+        .life-icon.lost {
+            opacity: 0.2;
+            transform: scale(0.7);
+            filter: grayscale(1);
+        }
+        .score {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 6px 18px;
+            border-radius: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            font-size: 17px;
+            color: #f0e8ff;
+        }
+        .score span {
+            color: #ffd866;
+            font-weight: 700;
+        }
+        .jump-indicator {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 4px 14px;
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            font-size: 15px;
+            color: #b0a8d0;
+        }
+        .jump-indicator span {
+            color: #a8d8ff;
+            font-weight: 600;
+        }
+        canvas {
+            display: block;
+            border-radius: 16px;
+            background: #0a0a1e;
+            box-shadow: inset 0 0 120px rgba(20, 10, 60, 0.6);
+            border: 1px solid rgba(120, 100, 255, 0.08);
+            width: 900px;
+            height: 600px;
+            cursor: pointer;
+        }
+        .controls-hint {
+            display: flex;
+            justify-content: center;
+            gap: 28px;
+            padding-top: 14px;
+            color: rgba(180, 170, 255, 0.35);
+            font-size: 13px;
+            letter-spacing: 0.3px;
+        }
+        .controls-hint kbd {
+            background: rgba(255, 255, 255, 0.04);
+            padding: 3px 12px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            font-family: inherit;
+            color: rgba(200, 190, 255, 0.5);
+            font-size: 12px;
+        }
+        @media (max-width: 960px) {
+            .game-wrapper {
+                padding: 12px;
+                border-radius: 16px;
+            }
+            canvas {
+                width: 100%;
+                height: auto;
+                aspect-ratio: 900/600;
+            }
+            .header {
+                font-size: 15px;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            .controls-hint {
+                flex-wrap: wrap;
+                gap: 12px;
+                font-size: 11px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-wrapper">
+        <div class="header">
+            <div class="header-left">
+                <div class="lives" id="livesDisplay">
+                    <span class="life-icon">🦋</span>
+                    <span class="life-icon">🦋</span>
+                    <span class="life-icon">🦋</span>
+                </div>
+                <div class="score">🍯 <span id="scoreDisplay">0</span></div>
+                <div class="jump-indicator">🦋 прыжков: <span id="jumpCountDisplay">∞</span></div>
+            </div>
+            <div class="header-right">
+                <div style="opacity:0.5;font-size:14px;" id="statusDisplay">✨ лети к свету</div>
+            </div>
+        </div>
+
+        <canvas id="gameCanvas" width="900" height="600"></canvas>
+
+        <div class="controls-hint">
+            <span><kbd>← →</kbd> или <kbd>A D</kbd> — лететь</span>
+            <span><kbd>Space</kbd> <kbd>↑</kbd> <kbd>W</kbd> — прыжок (бесконечный)</span>
+            <span><kbd>R</kbd> — начать заново</span>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        //  МОТЫЛЁК И ЛАМПОЧКА  –  БЕСКОНЕЧНЫЙ ПРЫЖОК
+        // ============================================================
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const W = 900,
+            H = 600;
+
+        // ---- DOM ----
+        const livesDisplay = document.getElementById('livesDisplay');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const statusDisplay = document.getElementById('statusDisplay');
+        const jumpCountDisplay = document.getElementById('jumpCountDisplay');
+
+        // ---- Состояние ----
+        const GRAVITY = 0.55;
+        const FRICTION = 0.82;
+        const MAX_LIVES = 3;
+
+        let gameState = 'playing';
+        let lives = MAX_LIVES;
+        let score = 0;
+        let deathTimer = 0;
+        const DEATH_DELAY = 40;
+        let winTimer = 0;
+        const WIN_DELAY = 60;
+        let frame = 0;
+
+        // ---- Клавиши ----
+        const keys = {};
+        document.addEventListener('keydown', e => {
+            keys[e.key] = true;
+            if (e.key === 'r' || e.key === 'R') resetGame();
+            if ((e.key === ' ' || e.key === 'Space') && (gameState === 'gameover' || gameState === 'win')) {
+                e.preventDefault();
+                resetGame();
+            }
+            if (e.key === ' ' || e.key === 'Space' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+                e.preventDefault();
+            }
+        });
+        document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+        // ---- Звёзды ----
+        const stars = [];
+        for (let i = 0; i < 120; i++) {
+            stars.push({
+                x: Math.random() * W,
+                y: Math.random() * H,
+                r: 0.5 + Math.random() * 1.5,
+                twinkle: Math.random() * Math.PI * 2,
+                speed: 0.02 + Math.random() * 0.03,
+            });
+        }
+
+        // ============================================================
+        //  ИГРОВЫЕ ОБЪЕКТЫ
+        // ============================================================
+
+        const platforms = [
+            { x: 0, y: 570, w: 900, h: 30, type: 'ground' },
+            { x: 40, y: 510, w: 130, h: 14 },
+            { x: 220, y: 470, w: 110, h: 14 },
+            { x: 380, y: 430, w: 130, h: 14 },
+            { x: 560, y: 470, w: 110, h: 14 },
+            { x: 730, y: 510, w: 130, h: 14 },
+            { x: 90, y: 380, w: 120, h: 14 },
+            { x: 290, y: 340, w: 130, h: 14 },
+            { x: 490, y: 380, w: 120, h: 14 },
+            { x: 680, y: 420, w: 100, h: 14 },
+            { x: 160, y: 280, w: 120, h: 14 },
+            { x: 370, y: 240, w: 140, h: 14 },
+            { x: 580, y: 280, w: 120, h: 14 },
+            { x: 250, y: 180, w: 130, h: 14 },
+            { x: 470, y: 140, w: 140, h: 14 },
+            { x: 680, y: 170, w: 110, h: 14 },
+        ];
+
+        const lightBulb = {
+            x: 780,
+            y: 115,
+            radius: 32,
+            glowRadius: 55,
+            pulse: 0,
+        };
+
+        let nectars = [];
+        function spawnNectars() {
+            nectars = [];
+            const positions = [
+                [80, 490],
+                [280, 450],
+                [440, 410],
+                [600, 450],
+                [770, 490],
+                [140, 360],
+                [340, 320],
+                [540, 360],
+                [720, 400],
+                [200, 260],
+                [420, 220],
+                [620, 260],
+                [290, 160],
+                [520, 120],
+                [720, 150]
+            ];
+            for (const [x, y] of positions) {
+                nectars.push({ x, y, radius: 7, collected: false, bob: Math.random() * Math.PI * 2 });
+            }
+        }
+        spawnNectars();
+
+        let flies = [];
+        function createFlies() {
+            flies = [];
+            const flyData = [
+                { x: 110, y: 480, range: 80, speed: 1.2, type: 'horizontal' },
+                { x: 440, y: 400, range: 70, speed: 1.6, type: 'horizontal' },
+                { x: 630, y: 440, range: 60, speed: 1.4, type: 'horizontal' },
+                { x: 340, y: 310, range: 90, speed: 1.8, type: 'horizontal' },
+                { x: 540, y: 350, range: 70, speed: 1.5, type: 'horizontal' },
+                { x: 450, y: 210, range: 60, speed: 1.7, type: 'horizontal' },
+                { x: 270, y: 150, range: 80, speed: 1.9, type: 'horizontal' },
+                { x: 700, y: 140, range: 70, speed: 1.3, type: 'horizontal' },
+                { x: 280, y: 400, range: 80, speed: 1.4, type: 'vertical' },
+                { x: 600, y: 300, range: 70, speed: 1.6, type: 'vertical' },
+            ];
+            for (const d of flyData) {
+                flies.push({
+                    x: d.x,
+                    y: d.y,
+                    startX: d.x,
+                    startY: d.y,
+                    range: d.range,
+                    speed: d.speed,
+                    type: d.type,
+                    phase: Math.random() * Math.PI * 2,
+                    wingAngle: 0,
+                    radius: 14,
+                    alive: true,
+                    hurtTimer: 0,
+                });
+            }
+        }
+        createFlies();
+
+        // ---- Игрок с бесконечным прыжком ----
+        const player = {
+            x: 60,
+            y: 556,
+            w: 32,
+            h: 28,
+            vx: 0,
+            vy: 0,
+            onGround: true,
+            wingPhase: 0,
+            facing: 1,
+            invincible: 0,
+
+            // Хитбокс без отступов
+            get left() { return this.x - this.w / 2; },
+            get right() { return this.x + this.w / 2; },
+            get top() { return this.y - this.h / 2; },
+            get bottom() { return this.y + this.h / 2; },
+        };
+
+        // ---- Отслеживание нажатия прыжка ----
+        let prevJump = false;
+
+        // ============================================================
+        //  ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+        // ============================================================
+
+        function rectCollide(a, b) {
+            return a.left < b.right && a.right > b.left &&
+                a.top < b.bottom && a.bottom > b.top;
+        }
+
+        function dist(x1, y1, x2, y2) {
+            return Math.hypot(x2 - x1, y2 - y1);
+        }
+
+        function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+        function updateLivesUI() {
+            const icons = livesDisplay.querySelectorAll('.life-icon');
+            icons.forEach((el, i) => {
+                if (i < lives) {
+                    el.classList.remove('lost');
+                    el.textContent = '🦋';
+                } else {
+                    el.classList.add('lost');
+                    el.textContent = '🕸️';
+                }
+            });
+        }
+        updateLivesUI();
+
+        function updateScoreUI() {
+            scoreDisplay.textContent = score;
+        }
+
+        // Индикатор прыжков всегда ∞
+        function updateJumpUI() {
+            jumpCountDisplay.textContent = '∞';
+        }
+
+        function setStatus(text, color = '#d4d0ff') {
+            statusDisplay.textContent = text;
+            statusDisplay.style.color = color;
+        }
+
+        // ============================================================
+        //  СБРОС / РЕСПАВН
+        // ============================================================
+
+        function respawnPlayer() {
+            player.x = 60;
+            player.y = 556;
+            player.vx = 0;
+            player.vy = 0;
+            player.onGround = true;
+            player.invincible = 90;
+            player.facing = 1;
+            gameState = 'playing';
+            deathTimer = 0;
+            setStatus('✨ лети к свету', '#d4d0ff');
+            prevJump = false;
+            updateJumpUI();
+        }
+
+        function resetGame() {
+            lives = MAX_LIVES;
+            score = 0;
+            spawnNectars();
+            createFlies();
+            respawnPlayer();
+            winTimer = 0;
+            updateLivesUI();
+            updateScoreUI();
+            gameState = 'playing';
+            setStatus('✨ лети к свету', '#d4d0ff');
+            updateJumpUI();
+        }
+
+        function playerDie() {
+            if (player.invincible > 0 || gameState === 'gameover' || gameState === 'win') return;
+            lives--;
+            updateLivesUI();
+            if (lives <= 0) {
+                gameState = 'gameover';
+                setStatus('💔 Игра окончена... Нажми R или Space', '#ff6b6b');
+                return;
+            }
+            gameState = 'dead';
+            deathTimer = DEATH_DELAY;
+            setStatus('💫 Ой! Осталось жизней: ' + lives, '#ffb347');
+        }
+
+        // ============================================================
+        //  ФИЗИКА И ОБНОВЛЕНИЕ (бесконечный прыжок)
+        // ============================================================
+
+        function updatePlayer() {
+            if (gameState === 'dead') {
+                deathTimer--;
+                if (deathTimer <= 0) {
+                    respawnPlayer();
+                }
+                return;
+            }
+            if (gameState === 'gameover' || gameState === 'win') return;
+
+            // ---- Управление ----
+            let moveX = 0;
+            if (keys['ArrowLeft'] || keys['a'] || keys['A']) moveX = -1;
+            if (keys['ArrowRight'] || keys['d'] || keys['D']) moveX = 1;
+
+            const jump = (keys[' '] || keys['Space'] || keys['ArrowUp'] || keys['w'] || keys['W']);
+
+            // ---- Движение ----
+            const accel = 0.55;
+            const maxSpeed = 4.5;
+            if (moveX !== 0) {
+                player.vx += moveX * accel;
+                if (Math.abs(player.vx) > maxSpeed) player.vx = moveX * maxSpeed;
+                player.facing = moveX;
+            } else {
+                player.vx *= FRICTION;
+                if (Math.abs(player.vx) < 0.05) player.vx = 0;
+            }
+
+            // ---- Бесконечный прыжок (по нажатию, не зажатию) ----
+            if (jump && !prevJump) {
+                // Прыгаем всегда: с земли или с воздуха
+                if (player.onGround) {
+                    player.vy = -9.2;
+                    player.onGround = false;
+                    spawnParticles(player.x, player.y + player.h/2, '#a8d8ff', 6, 2);
+                } else {
+                    // В воздухе — бесконечный прыжок с чуть меньшей силой
+                    player.vy = -8.5;
+                    spawnParticles(player.x, player.y + player.h/2, '#88ddff', 8, 2.5);
+                }
+            }
+            prevJump = jump;
+
+            // ---- Гравитация ----
+            player.vy += GRAVITY;
+            if (player.vy > 12) player.vy = 12;
+
+            // ---- Перемещение по X ----
+            player.x += player.vx;
+
+            // ---- Коррекция X ----
+            for (const plat of platforms) {
+                if (rectCollide(player, plat)) {
+                    if (player.vx > 0) {
+                        player.x = plat.x - player.w / 2;
+                    } else if (player.vx < 0) {
+                        player.x = plat.x + plat.w + player.w / 2;
+                    }
+                    player.vx = 0;
+                }
+            }
+
+            // ---- Перемещение по Y ----
+            player.y += player.vy;
+
+            // ---- Коррекция Y ----
+            let wasOnGround = player.onGround;
+            player.onGround = false;
+            for (const plat of platforms) {
+                if (rectCollide(player, plat)) {
+                    if (player.vy > 0) {
+                        // Приземление сверху
+                        player.y = plat.y - player.h / 2;
+                        player.vy = 0;
+                        player.onGround = true;
+                    } else if (player.vy < 0) {
+                        // Удар головой снизу
+                        player.y = plat.y + plat.h + player.h / 2;
+                        player.vy = 0;
+                    }
+                }
+            }
+
+            // ---- Границы ----
+            if (player.y + player.h / 2 > H) {
+                player.y = H - player.h / 2;
+                player.vy = 0;
+                player.onGround = true;
+            }
+            if (player.y - player.h / 2 < -50) {
+                player.y = -30;
+                player.vy = 0;
+            }
+            if (player.x - player.w / 2 < 0) { player.x = player.w / 2;
+                player.vx = 0; }
+            if (player.x + player.w / 2 > W) { player.x = W - player.w / 2;
+                player.vx = 0; }
+
+            // ---- Крылья ----
+            if (Math.abs(player.vy) > 0.5 || !player.onGround) {
+                player.wingPhase += 0.35;
+            } else if (Math.abs(player.vx) > 0.3) {
+                player.wingPhase += 0.2;
+            } else {
+                player.wingPhase += 0.06;
+            }
+
+            // ---- Неуязвимость ----
+            if (player.invincible > 0) player.invincible--;
+
+            // ---- Сбор нектара ----
+            for (const n of nectars) {
+                if (n.collected) continue;
+                if (dist(player.x, player.y, n.x, n.y) < n.radius + 16) {
+                    n.collected = true;
+                    score += 10;
+                    updateScoreUI();
+                    spawnParticles(n.x, n.y, '#ffd866', 12, 3);
+                }
+            }
+
+            // ---- Мухи ----
+            for (const fly of flies) {
+                if (!fly.alive) continue;
+                if (player.invincible > 0) continue;
+                if (dist(player.x, player.y, fly.x, fly.y) < fly.radius + 12) {
+                    playerDie();
+                    spawnParticles(fly.x, fly.y, '#ff6b6b', 20, 4);
+                    break;
+                }
+            }
+
+            // ---- Лампочка ----
+            const dToBulb = dist(player.x, player.y, lightBulb.x, lightBulb.y);
+            if (dToBulb < lightBulb.radius + 12 && gameState === 'playing') {
+                gameState = 'win';
+                winTimer = 0;
+                setStatus('🎉 ПОБЕДА! Ты достиг света! 🎉', '#ffd866');
+                spawnParticles(lightBulb.x, lightBulb.y, '#ffd866', 60, 6);
+                spawnParticles(lightBulb.x, lightBulb.y, '#ffaa44', 40, 5);
+            }
+
+            updateJumpUI();
+        }
+
+        // ---- Обновление мух ----
+        function updateFlies() {
+            for (const fly of flies) {
+                if (!fly.alive) continue;
+                fly.phase += 0.025 * fly.speed;
+                fly.wingAngle += 0.25;
+
+                if (fly.type === 'horizontal') {
+                    fly.x = fly.startX + Math.sin(fly.phase) * fly.range;
+                } else {
+                    fly.y = fly.startY + Math.sin(fly.phase) * fly.range;
+                }
+
+                fly.x += Math.sin(fly.phase * 2.7) * 0.3;
+                fly.y += Math.cos(fly.phase * 3.1) * 0.3;
+
+                fly.x = clamp(fly.x, 10, W - 10);
+                fly.y = clamp(fly.y, 10, H - 10);
+            }
+        }
+
+        // ---- Частицы ----
+        let particles = [];
+
+        function spawnParticles(x, y, color, count, speed) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const spd = 1 + Math.random() * speed;
+                particles.push({
+                    x,
+                    y,
+                    vx: Math.cos(angle) * spd,
+                    vy: Math.sin(angle) * spd - 0.5,
+                    life: 30 + Math.random() * 30,
+                    maxLife: 60,
+                    radius: 2 + Math.random() * 4,
+                    color,
+                    decay: 0.97 + Math.random() * 0.02,
+                });
+            }
+        }
+
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.05;
+                p.vx *= p.decay;
+                p.vy *= p.decay;
+                p.life--;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        // ============================================================
+        //  ОТРИСОВКА
+        // ============================================================
+
+        function drawStars() {
+            for (const star of stars) {
+                star.twinkle += star.speed;
+                const alpha = 0.4 + 0.6 * Math.abs(Math.sin(star.twinkle));
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                ctx.fill();
+                if (star.r > 1) {
+                    ctx.shadowColor = 'rgba(200, 200, 255, 0.15)';
+                    ctx.shadowBlur = 8;
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+            }
+        }
+
+        function drawPlatforms() {
+            for (const plat of platforms) {
+                if (plat.type === 'ground') {
+                    const grd = ctx.createLinearGradient(0, plat.y, 0, plat.y + plat.h);
+                    grd.addColorStop(0, '#4a7a5a');
+                    grd.addColorStop(0.15, '#3d6a4d');
+                    grd.addColorStop(0.5, '#2d4a3a');
+                    grd.addColorStop(1, '#1a2a22');
+                    ctx.fillStyle = grd;
+                    ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
+                    ctx.strokeStyle = '#5a9a6a';
+                    ctx.lineWidth = 2;
+                    for (let i = 0; i < plat.w; i += 8) {
+                        const h = 4 + Math.sin(i * 0.5 + frame * 0.02) * 3;
+                        ctx.beginPath();
+                        ctx.moveTo(plat.x + i, plat.y);
+                        ctx.lineTo(plat.x + i + 2, plat.y - h);
+                        ctx.stroke();
+                    }
+                    continue;
+                }
+                const grd = ctx.createLinearGradient(0, plat.y, 0, plat.y + plat.h);
+                grd.addColorStop(0, '#b8956a');
+                grd.addColorStop(0.3, '#a8845a');
+                grd.addColorStop(0.7, '#8a6e4a');
+                grd.addColorStop(1, '#6a523a');
+                ctx.fillStyle = grd;
+                ctx.shadowColor = 'rgba(0,0,0,0.4)';
+                ctx.shadowBlur = 8;
+                ctx.shadowOffsetY = 3;
+                ctx.beginPath();
+                ctx.roundRect(plat.x, plat.y, plat.w, plat.h, 4);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.shadowOffsetY = 0;
+                ctx.fillStyle = 'rgba(255, 220, 180, 0.08)';
+                ctx.fillRect(plat.x + 4, plat.y + 2, plat.w - 8, 3);
+                ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+                ctx.lineWidth = 1;
+                for (let i = 10; i < plat.w - 10; i += 18) {
+                    ctx.beginPath();
+                    ctx.moveTo(plat.x + i, plat.y + 3);
+                    ctx.lineTo(plat.x + i + 6, plat.y + plat.h - 3);
+                    ctx.stroke();
+                }
+            }
+        }
+
+        function drawMoth() {
+            if (gameState === 'dead') {
+                const alpha = 0.3 + 0.3 * Math.sin(deathTimer * 0.3);
+                ctx.globalAlpha = alpha;
+            }
+            if (player.invincible > 0 && Math.floor(player.invincible / 4) % 2 === 0) {
+                ctx.globalAlpha = 0.5;
+            }
+
+            const x = player.x,
+                y = player.y;
+            const f = player.facing;
+            const wing = Math.sin(player.wingPhase) * 0.5 + 0.5;
+
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(f, 1);
+
+            ctx.shadowColor = 'rgba(0,0,0,0.2)';
+            ctx.shadowBlur = 12;
+            ctx.shadowOffsetY = 4;
+
+            const wingAngle = wing * 0.9 + 0.1;
+
+            ctx.shadowBlur = 0;
+            // Левое крыло (нижнее)
+            ctx.beginPath();
+            ctx.moveTo(-2, 2);
+            ctx.quadraticCurveTo(-26, -10 + (1 - wingAngle) * 18, -32, 2 + (1 - wingAngle) * 12);
+            ctx.quadraticCurveTo(-26, 10 + (1 - wingAngle) * 10, -2, 6);
+            ctx.fillStyle = 'rgba(180, 160, 220, 0.6)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(120, 100, 180, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(2, 2);
+            ctx.quadraticCurveTo(26, -10 + (1 - wingAngle) * 18, 32, 2 + (1 - wingAngle) * 12);
+            ctx.quadraticCurveTo(26, 10 + (1 - wingAngle) * 10, 2, 6);
+            ctx.fillStyle = 'rgba(180, 160, 220, 0.6)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(120, 100, 180, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // Левое верхнее
+            ctx.beginPath();
+            ctx.moveTo(-3, -2);
+            ctx.quadraticCurveTo(-28, -22 + wingAngle * 14, -34, -4 + wingAngle * 10);
+            ctx.quadraticCurveTo(-24, 4 + wingAngle * 6, -3, 2);
+            ctx.fillStyle = `rgba(200, 180, 240, ${0.5 + wingAngle * 0.3})`;
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(140, 120, 200, 0.25)';
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.ellipse(-16, -8 + wingAngle * 8, 10, 6 + wingAngle * 4, -0.2, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(220, 200, 255, 0.15)';
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(3, -2);
+            ctx.quadraticCurveTo(28, -22 + wingAngle * 14, 34, -4 + wingAngle * 10);
+            ctx.quadraticCurveTo(24, 4 + wingAngle * 6, 3, 2);
+            ctx.fillStyle = `rgba(200, 180, 240, ${0.5 + wingAngle * 0.3})`;
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(140, 120, 200, 0.25)';
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.ellipse(16, -8 + wingAngle * 8, 10, 6 + wingAngle * 4, 0.2, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(220, 200, 255, 0.15)';
+            ctx.fill();
+
+            // Тело
+            ctx.shadowColor = 'rgba(0,0,0,0.2)';
+            ctx.shadowBlur = 6;
+            ctx.shadowOffsetY = 2;
+            const bodyGrd = ctx.createRadialGradient(0, 0, 2, 0, 0, 12);
+            bodyGrd.addColorStop(0, '#d4c8a8');
+            bodyGrd.addColorStop(0.5, '#b8a888');
+            bodyGrd.addColorStop(1, '#8a7a62');
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 8, 14, 0, 0, Math.PI * 2);
+            ctx.fillStyle = bodyGrd;
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(80, 70, 50, 0.2)';
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+
+            ctx.shadowBlur = 4;
+            ctx.beginPath();
+            ctx.arc(0, -13, 7, 0, Math.PI * 2);
+            ctx.fillStyle = '#c8b898';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(80, 70, 50, 0.15)';
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#2a1a1a';
+            ctx.beginPath();
+            ctx.arc(-4, -15, 2.8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(4, -15, 2.8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.beginPath();
+            ctx.arc(-3, -16.5, 1, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(5, -16.5, 1, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = '#8a7a62';
+            ctx.lineWidth = 1.2;
+            ctx.shadowBlur = 2;
+            ctx.beginPath();
+            ctx.moveTo(-3, -18);
+            ctx.quadraticCurveTo(-16, -28, -14, -34);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(3, -18);
+            ctx.quadraticCurveTo(16, -28, 14, -34);
+            ctx.stroke();
+            ctx.fillStyle = '#b8a888';
+            ctx.beginPath();
+            ctx.arc(-14, -34, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(14, -34, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetY = 0;
+            ctx.restore();
+            ctx.globalAlpha = 1;
+        }
+
+        function drawFlies() {
+            for (const fly of flies) {
+                if (!fly.alive) continue;
+                const x = fly.x,
+                    y = fly.y;
+                const wing = Math.sin(fly.wingAngle) * 0.5 + 0.5;
+
+                ctx.save();
+                ctx.translate(x, y);
+
+                const wingSize = 12 + wing * 4;
+                ctx.fillStyle = `rgba(200, 220, 255, ${0.15 + wing * 0.15})`;
+                ctx.strokeStyle = 'rgba(200, 220, 255, 0.08)';
+                ctx.lineWidth = 0.5;
+
+                ctx.beginPath();
+                ctx.ellipse(-8, -2, wingSize, 5 + wing * 3, -0.3 + wing * 0.3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.ellipse(8, -2, wingSize, 5 + wing * 3, 0.3 - wing * 0.3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.shadowColor = 'rgba(0,0,0,0.15)';
+                ctx.shadowBlur = 4;
+                ctx.shadowOffsetY = 1;
+                const bodyGrd = ctx.createRadialGradient(-1, -1, 1, 0, 0, 10);
+                bodyGrd.addColorStop(0, '#4a4a5a');
+                bodyGrd.addColorStop(0.6, '#2a2a3a');
+                bodyGrd.addColorStop(1, '#1a1a2a');
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 6, 9, 0, 0, Math.PI * 2);
+                ctx.fillStyle = bodyGrd;
+                ctx.fill();
+
+                ctx.shadowBlur = 2;
+                ctx.beginPath();
+                ctx.arc(0, -8, 5, 0, Math.PI * 2);
+                ctx.fillStyle = '#3a3a4a';
+                ctx.fill();
+
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#cc2244';
+                ctx.beginPath();
+                ctx.arc(-3, -9, 2.2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(3, -9, 2.2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                ctx.beginPath();
+                ctx.arc(-2.5, -10, 0.8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(3.5, -10, 0.8, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.shadowBlur = 0;
+                ctx.restore();
+            }
+        }
+
+        function drawNectars() {
+            for (const n of nectars) {
+                if (n.collected) continue;
+                n.bob += 0.04;
+                const by = n.y + Math.sin(n.bob) * 2;
+                const pulse = 1 + 0.08 * Math.sin(n.bob * 0.7);
+
+                const grd = ctx.createRadialGradient(n.x, by, 2, n.x, by, 16 * pulse);
+                grd.addColorStop(0, 'rgba(255, 220, 80, 0.25)');
+                grd.addColorStop(1, 'rgba(255, 220, 80, 0)');
+                ctx.fillStyle = grd;
+                ctx.beginPath();
+                ctx.arc(n.x, by, 16 * pulse, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.shadowColor = 'rgba(255, 200, 50, 0.3)';
+                ctx.shadowBlur = 14;
+                const grd2 = ctx.createRadialGradient(n.x - 1.5, by - 2, 1, n.x, by, 7 * pulse);
+                grd2.addColorStop(0, '#ffea88');
+                grd2.addColorStop(0.5, '#ffd44a');
+                grd2.addColorStop(1, '#cc9922');
+                ctx.beginPath();
+                ctx.arc(n.x, by, 6 * pulse, 0, Math.PI * 2);
+                ctx.fillStyle = grd2;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                ctx.beginPath();
+                ctx.arc(n.x - 1.5, by - 2.5, 1.8 * pulse, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        function drawLightBulb() {
+            const x = lightBulb.x,
+                y = lightBulb.y;
+            lightBulb.pulse += 0.025;
+            const pulse = 1 + 0.06 * Math.sin(lightBulb.pulse);
+            const glow = 1 + 0.08 * Math.sin(lightBulb.pulse * 0.7 + 1);
+
+            const grd = ctx.createRadialGradient(x, y, 10, x, y, 120 * glow);
+            grd.addColorStop(0, 'rgba(255, 230, 150, 0.35)');
+            grd.addColorStop(0.2, 'rgba(255, 210, 100, 0.2)');
+            grd.addColorStop(0.5, 'rgba(255, 180, 60, 0.08)');
+            grd.addColorStop(1, 'rgba(255, 150, 50, 0)');
+            ctx.fillStyle = grd;
+            ctx.beginPath();
+            ctx.arc(x, y, 120 * glow, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.save();
+            ctx.translate(x, y);
+            for (let i = 0; i < 8; i++) {
+                const angle = i / 8 * Math.PI * 2 + frame * 0.002;
+                const len = 40 + 20 * Math.sin(angle * 2 + frame * 0.01);
+                const alpha = 0.04 + 0.03 * Math.sin(angle * 3 + frame * 0.015);
+                ctx.beginPath();
+                ctx.moveTo(Math.cos(angle) * 20, Math.sin(angle) * 20);
+                ctx.lineTo(Math.cos(angle) * (20 + len), Math.sin(angle) * (20 + len));
+                ctx.strokeStyle = `rgba(255, 220, 150, ${alpha})`;
+                ctx.lineWidth = 2 + 2 * Math.sin(angle + frame * 0.02);
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            ctx.shadowColor = 'rgba(255, 220, 100, 0.5)';
+            ctx.shadowBlur = 30 * pulse;
+            const bulbGrd = ctx.createRadialGradient(x - 6, y - 8, 4, x, y, 28 * pulse);
+            bulbGrd.addColorStop(0, '#fffde8');
+            bulbGrd.addColorStop(0.3, '#ffea88');
+            bulbGrd.addColorStop(0.7, '#ffcc44');
+            bulbGrd.addColorStop(1, '#dd9933');
+            ctx.beginPath();
+            ctx.arc(x, y, 26 * pulse, 0, Math.PI * 2);
+            ctx.fillStyle = bulbGrd;
+            ctx.fill();
+
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.beginPath();
+            ctx.ellipse(x - 8, y - 10, 8, 5, -0.4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'rgba(255,255,255,0.2)';
+            ctx.beginPath();
+            ctx.ellipse(x + 6, y + 6, 4, 3, 0.3, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.shadowBlur = 4;
+            ctx.shadowColor = 'rgba(0,0,0,0.2)';
+            ctx.fillStyle = '#8a7a6a';
+            ctx.fillRect(x - 8, y + 24 * pulse, 16, 8);
+            ctx.fillStyle = '#6a5a4a';
+            ctx.fillRect(x - 6, y + 32 * pulse, 12, 6);
+            ctx.fillStyle = '#5a4a3a';
+            ctx.fillRect(x - 4, y + 38 * pulse, 8, 4);
+            ctx.shadowBlur = 0;
+        }
+
+        function drawParticles() {
+            for (const p of particles) {
+                const alpha = p.life / p.maxLife;
+                ctx.globalAlpha = alpha;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = p.color;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius * alpha, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            ctx.shadowBlur = 0;
+        }
+
+        function drawGameUI() {
+            if (gameState === 'gameover') {
+                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                ctx.fillRect(0, 0, W, H);
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.font = 'bold 56px "Segoe UI", Arial, sans-serif';
+                ctx.fillStyle = '#ff6b6b';
+                ctx.shadowColor = 'rgba(255,80,80,0.3)';
+                ctx.shadowBlur = 40;
+                ctx.fillText('💔 ИГРА ОКОНЧЕНА', W / 2, H / 2 - 30);
+                ctx.shadowBlur = 0;
+                ctx.font = '22px "Segoe UI", Arial, sans-serif';
+                ctx.fillStyle = '#b0a8d0';
+                ctx.fillText('Нажми R или Space чтобы начать заново', W / 2, H / 2 + 50);
+                ctx.font = '18px "Segoe UI", Arial, sans-serif';
+                ctx.fillStyle = '#8a80aa';
+                ctx.fillText('Счёт: ' + score, W / 2, H / 2 + 100);
+            }
+
+            if (gameState === 'win') {
+                ctx.fillStyle = 'rgba(0,0,0,0.4)';
+                ctx.fillRect(0, 0, W, H);
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.font = 'bold 56px "Segoe UI", Arial, sans-serif';
+                ctx.fillStyle = '#ffd866';
+                ctx.shadowColor = 'rgba(255,200,80,0.4)';
+                ctx.shadowBlur = 50;
+                ctx.fillText('🎉 ПОБЕДА! 🎉', W / 2, H / 2 - 30);
+                ctx.shadowBlur = 0;
+                ctx.font = '24px "Segoe UI", Arial, sans-serif';
+                ctx.fillStyle = '#e8dcc0';
+                ctx.fillText('Ты достиг света! Счёт: ' + score, W / 2, H / 2 + 50);
+                ctx.font = '18px "Segoe UI", Arial, sans-serif';
+                ctx.fillStyle = '#b0a8d0';
+                ctx.fillText('Нажми R или Space чтобы сыграть снова', W / 2, H / 2 + 100);
+            }
+
+            if (gameState === 'dead') {
+                ctx.fillStyle = `rgba(0,0,0,${0.08 * (1 - deathTimer / DEATH_DELAY)})`;
+                ctx.fillRect(0, 0, W, H);
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, W, H);
+
+            const bgGrd = ctx.createLinearGradient(0, 0, 0, H);
+            bgGrd.addColorStop(0, '#070714');
+            bgGrd.addColorStop(0.4, '#0d0d2b');
+            bgGrd.addColorStop(0.7, '#16163a');
+            bgGrd.addColorStop(1, '#1a1a2e');
+            ctx.fillStyle = bgGrd;
+            ctx.fillRect(0, 0, W, H);
+
+            drawStars();
+            drawPlatforms();
+            drawNectars();
+            drawFlies();
+            drawLightBulb();
+            drawMoth();
+            drawParticles();
+            drawGameUI();
+        }
+
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+                if (r > w / 2) r = w / 2;
+                if (r > h / 2) r = h / 2;
+                this.moveTo(x + r, y);
+                this.arcTo(x + w, y, x + w, y + h, r);
+                this.arcTo(x + w, y + h, x, y + h, r);
+                this.arcTo(x, y + h, x, y, r);
+                this.arcTo(x, y, x + w, y, r);
+                return this;
+            };
+        }
+
+        // ============================================================
+        //  ГЛАВНЫЙ ЦИКЛ
+        // ============================================================
+
+        function gameLoop() {
+            frame++;
+            updateFlies();
+            updatePlayer();
+            updateParticles();
+
+            lightBulb.pulse += 0.025;
+
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        resetGame();
+        gameLoop();
+
+        canvas.addEventListener('click', () => canvas.focus());
+        canvas.setAttribute('tabindex', '0');
+        canvas.focus();
+
+        console.log('🦋 Мотылёк и Лампочка — бесконечный прыжок!');
+        console.log('🎮 Управление: ← → / A D — движение, Space / ↑ / W — прыжок (бесконечный, по нажатию)');
+    </script>
+
+</body>
+</html>
