@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Super Mario – 10 уровней, мышь + клавиатура</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      background: #0b0e1a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Segoe UI', Arial, sans-serif;
+    }
+    .game-wrapper {
+      background: #1a1f2f;
+      padding: 20px 20px 16px;
+      border-radius: 20px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.8);
+      user-select: none;
+    }
+    canvas {
+      display: block;
+      margin: 0 auto;
+      border-radius: 12px;
+      background: #87CEEB;
+      cursor: none;
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
+    }
+    .info {
+      display: flex;
+      justify-content: space-between;
+      color: #eef;
+      font-size: 18px;
+      padding: 10px 6px 4px 6px;
+      font-weight: 600;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.7);
+      flex-wrap: wrap;
+      gap: 6px 12px;
+    }
+    .info span {
+      background: rgba(0,0,0,0.3);
+      padding: 2px 12px;
+      border-radius: 30px;
+      backdrop-filter: blur(2px);
+    }
+    .controls {
+      color: #9aa;
+      font-size: 13px;
+      text-align: center;
+      margin-top: 10px;
+      line-height: 1.6;
+    }
+    .controls kbd {
+      background: #2a2f3f;
+      color: #dde;
+      padding: 2px 10px;
+      border-radius: 6px;
+      font-size: 14px;
+      border: 1px solid #4a4f5f;
+      font-weight: 700;
+    }
+    .controls .sep {
+      margin: 0 6px;
+      color: #556;
+    }
+  </style>
+</head>
+<body>
+<div class="game-wrapper">
+  <div class="info">
+    <span>🪙 <span id="coinDisplay">0</span></span>
+    <span>❤️ <span id="lifeDisplay">3</span></span>
+    <span>📘 <span id="levelDisplay">Уровень 1</span></span>
+    <span>🏁 <span id="statusDisplay">Игра</span></span>
+  </div>
+  <canvas id="gameCanvas" width="800" height="400"></canvas>
+  <div class="controls">
+    <kbd>←</kbd> <kbd>→</kbd> <span class="sep">или</span> 🖱️ движение &nbsp;|&nbsp;
+    <kbd>↑</kbd> <kbd>Пробел</kbd> <span class="sep">или</span> <kbd>ЛКМ</kbd> прыжок &nbsp;|&nbsp;
+    <kbd>R</kbd> рестарт
+  </div>
+</div>
+
+<script>
+  (function() {
+    // ---------- Элементы ----------
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const coinSpan = document.getElementById('coinDisplay');
+    const lifeSpan = document.getElementById('lifeDisplay');
+    const levelSpan = document.getElementById('levelDisplay');
+    const statusSpan = document.getElementById('statusDisplay');
+
+    const W = 800, H = 400;
+    const GRAVITY = 0.55;
+    const FRICTION = 0.85;
+    const MAX_SPEED = 5.5;
+    const JUMP_FORCE = -11.5;
+    const FOLLOW_SPEED = 0.35;
+
+    // ---------- Игрок ----------
+    const player = {
+      x: 50, y: 300,
+      w: 28, h: 38,
+      vx: 0, vy: 0,
+      onGround: false,
+      lives: 3,
+      coins: 0,
+      dead: false,
+      won: false,
+      finished: false,
+      targetX: 50,
+      // флаги управления
+      keyboardActive: false
+    };
+
+    // Текущие данные уровня
+    let currentLevelIndex = 0;
+    let platforms = [];
+    let movingPlatforms = [];
+    let enemies = [];
+    let coins = [];
+    let spikes = [];
+    let flag = null;
+    let playerStartX = 50;
+    let playerStartY = 300;
+    let bgGradient = null;
+    let starField = [];
+
+    // Клавиши
+    const keys = {
+      left: false,
+      right: false,
+      jump: false,
+      jumpPressed: false
+    };
+
+    // ---------- Генерация звёзд для фона ----------
+    function generateStars(count) {
+      const stars = [];
+      for (let i = 0; i < count; i++) {
+        stars.push({
+          x: Math.random() * W,
+          y: Math.random() * H * 0.6,
+          r: Math.random() * 1.5 + 0.5,
+          a: Math.random() * 0.7 + 0.3
+        });
+      }
+      return stars;
+    }
+
+    // ---------- Определение 10 уровней ----------
+    const LEVELS = [
+      // Уровень 1 – Введение
+      {
+        name: "Уровень 1",
+        startX: 50, startY: 300,
+        bg: ['#87CEEB', '#E0F0FF'],
+        stars: 0,
+        platforms: [
+          { x: 0, y: 350, w: 800, h: 50 },
+          { x: 80, y: 280, w: 120, h: 18 },
+          { x: 280, y: 220, w: 120, h: 18 },
+          { x: 480, y: 280, w: 120, h: 18 },
+          { x: 650, y: 200, w: 100, h: 18 }
+        ],
+        moving: [],
+        enemies: [
+          { x: 150, y: 330, w: 26, h: 26, vx: 1.2, minX: 50, maxX: 250, alive: true },
+          { x: 320, y: 200, w: 26, h: 26, vx: 1.0, minX: 280, maxX: 400, alive: true }
+        ],
+        coins: [
+          { x: 130, y: 250, r: 10, collected: false },
+          { x: 180, y: 250, r: 10, collected: false },
+          { x: 330, y: 190, r: 10, collected: false },
+          { x: 380, y: 190, r: 10, collected: false },
+          { x: 530, y: 250, r: 10, collected: false },
+          { x: 700, y: 170, r: 10, collected: false }
+        ],
+        spikes: [],
+        flag: { x: 760, y: 280, w: 18, h: 70 }
+      },
+      // Уровень 2 – Первые шипы
+      {
+        name: "Уровень 2",
+        startX: 40, startY: 300,
+        bg: ['#6B8E9B', '#B0D0D8'],
+        stars: 20,
+        platforms: [
+          { x: 0, y: 350, w: 800, h: 50 },
+          { x: 50, y: 280, w: 100, h: 18 },
+          { x: 200, y: 220, w: 100, h: 18 },
+          { x: 350, y: 160, w: 100, h: 18 },
+          { x: 500, y: 220, w: 100, h: 18 },
+          { x: 650, y: 280, w: 100, h: 18 }
+        ],
+        moving: [],
+        enemies: [
+          { x: 100, y: 330, w: 26, h: 26, vx: 1.5, minX: 30, maxX: 150, alive: true },
+          { x: 250, y: 200, w: 26, h: 26, vx: 1.2, minX: 200, maxX: 300, alive: true },
+          { x: 400, y: 140, w: 26, h: 26, vx: 1.0, minX: 350, maxX: 450, alive: true }
+        ],
+        coins: [
+          { x: 90, y: 250, r: 10, collected: false },
+          { x: 240, y: 190, r: 10, collected: false },
+          { x: 390, y: 130, r: 10, collected: false },
+          { x: 540, y: 190, r: 10, collected: false },
+          { x: 690, y: 250, r: 10, collected: false }
+        ],
+        spikes: [
+          { x: 120, y: 338, w: 20, h: 12 },
+          { x: 450, y: 148, w: 20, h: 12 }
+        ],
+        flag: { x: 750, y: 280, w: 18, h: 70 }
+      },
+      // Уровень 3 – Движущиеся платформы
+      {
+        name: "Уровень 3",
+        startX: 30, startY: 300,
+        bg: ['#9FB8C4', '#D4E6F0'],
+        stars: 30,
+        platforms: [
+          { x: 0, y: 350, w: 800, h: 50 },
+          { x: 60, y: 290, w: 80, h: 16 },
+          { x: 200, y: 240, w: 80, h: 16 },
+          { x: 340, y: 190, w: 80, h: 16 },
+          { x: 480, y: 140, w: 80, h: 16 },
+          { x: 620, y: 240, w: 80, h: 16 }
+        ],
+        moving: [
+          { x: 140, y: 210, w: 60, h: 14, startX: 120, endX: 250, speed: 1.5, axis: 'x', dir: 1 },
+          { x: 420, y: 120, w: 60, h: 14, startX: 390, endX: 520, speed: 1.8, axis: 'x', dir: 1 }
+        ],
+        enemies: [
+          { x: 80, y: 330, w: 26, h: 26, vx: 1.8, minX: 30, maxX: 140, alive: true },
+          { x: 240, y: 220, w: 26, h: 26, vx: 1.5, minX: 200, maxX: 300, alive: true },
+          { x: 500, y: 120, w: 26, h: 26, vx: 1.2, minX: 460, maxX: 560, alive: true }
+        ],
+        coins: [
+          { x: 100, y: 260, r: 10, collected: false },
+          { x: 260, y: 210, r: 10, collected: false },
+          { x: 380, y: 160, r: 10, collected: false },
+          { x: 520, y: 110, r: 10, collected: false },
+          { x: 660, y: 210, r: 10, collected: false }
+        ],
+        spikes: [],
+        flag: { x: 750, y: 280, w: 18, h: 70 }
+      },
+      // Уровень 4 – Сложные шипы и враги
+      {
+        name: "Уровень 4",
+        startX: 20, startY: 300,
+        bg: ['#8F9EAB', '#C2D6E0'],
+        stars: 40,
+        platforms: [
+          { x: 0, y: 350, w: 800, h: 50 },
+          { x: 40, y: 290, w: 80, h: 16 },
+          { x: 180, y: 230, w: 80, h: 16 },
+          { x: 320, y: 170, w: 80, h: 16 },
+          { x: 460, y: 230, w: 80, h: 16 },
+          { x: 600, y: 290, w: 80, h: 16 }
+        ],
+        moving: [
+          { x: 220, y: 190, w: 60, h: 14, startX: 180, endX: 300, speed: 2.0, axis: 'x', dir: 1 }
+        ],
+        enemies: [
+          { x: 60, y: 330, w: 26, h: 26, vx: 1.2, minX: 20, maxX: 120, alive: true },
+          { x: 200, y: 210, w: 26, h: 26, vx: 1.8, minX: 160, maxX: 260, alive: true },
+          { x: 340, y: 150, w: 26, h: 26, vx: 1.5, minX: 300, maxX: 400, alive: true },
+          { x: 500, y: 210, w: 26, h: 26, vx: 1.2, minX: 460, maxX: 560, alive: true }
+        ],
+        coins: [
+          { x: 80, y: 260, r: 10, collected: false },
+          { x: 220, y: 200, r: 10, collected: false },
+          { x: 360, y: 140, r: 10, collected: false },
+          { x: 500, y: 200, r: 10, collected: false },
+          { x: 640, y: 260, r: 10, collected: false }
+        ],
+        spikes: [
+          { x: 130, y: 338, w: 20, h: 12 },
+          { x: 400, y: 158, w: 20, h: 12 },
+          { x: 550, y: 218, w: 20, h: 12 }
+        ],
+        flag: { x: 750, y: 280, w: 18, h: 70 }
+      },
+      // Уровень 5 – Вертикальные движущиеся платформы
+      {
+        name: "Уровень 5",
+        startX: 50, startY: 280,
+        bg: ['#7C8FA0', '#B8CFDC'],
+        stars: 50,
+        platforms: [
+          { x: 0, y: 350, w: 800, h: 50 },
+          { x: 70, y: 280, w: 80, h: 16 },
+          { x: 210, y: 200, w: 80, h: 16 },
+          { x: 350, y: 280, w: 80, h: 16 },
+          { x: 490, y: 200, w: 80, h: 16 },
+          { x: 630, y: 280, w: 80, h: 16 }
+        ],
+        moving: [
+          { x: 150, y: 180, w: 60, h: 14, startY: 140, endY: 280, speed: 1.2, axis: 'y', dir: 1 },
+          { x: 430, y: 180, w: 60, h: 14, startY: 140, endY: 280, speed: 1.6, axis: 'y', dir: 1 }
+        ],
+        enemies: [
+          { x: 110, y: 330, w: 26, h: 26, vx: 1.0, minX: 70, maxX: 170, alive: true },
+          { x: 250, y: 180, w: 26, h: 26, vx: 1.8, minX: 210, maxX: 310, alive: true },
+          { x: 530, y: 180, w: 26, h: 26, vx: 1.4, minX: 490, maxX: 590, alive: true }
+        ],
+        coins: [
+          { x: 120, y: 250, r: 10, collected: false },
+          { x: 260, y: 170, r: 10, collected: false },
+          { x: 400, y: 250, r: 10, collected: false },
+          { x: 540, y: 170, r: 10, collected: false },
+          { x: 680, y: 250, r: 10, collected: false }
+        ],
+        spikes: [
+          { x: 300, y: 338, w: 20, h: 12 },
+          { x: 620, y: 218, w: 20, h: 12 }
+        ],
+        flag: { x: 750, y: 280, w: 18, h: 70 }
+      },
+      // Уровень 6 – Комбинация
+      {
+        name: "Уровень 6",
+        startX: 30, startY: 300,
+        bg: ['#6A7F8E', '#A6C0D0'],
+        stars: 60,
+        platforms: [
+          { x: 0, y: 350, w: 800, h: 50 },
+          { x: 50, y: 290, w: 80, h: 16 },
+          { x: 180, y: 240, w: 80, h: 16 },
+          { x: 310, y: 190, w: 80, h: 16 },
+          { x: 440, y: 140, w: 80, h: 16 },
+          { x: 570, y: 190, w: 80, h: 16 },
+          { x: 700, y: 240, w: 80, h: 16 }
+        ],
+        moving: [
+          { x: 130, y: 210, w: 50, h: 14, startX: 100, endX: 230, speed: 1.8, axis: 'x', dir: 1 },
+          { x: 390, y: 110, w: 50, h: 14, startX: 360, endX: 490, speed: 2.0, axis: 'x', dir: 1 }
+        ],
+        enemies: [
+          { x: 90, y: 330, w: 26, h: 26, vx: 1.5, minX: 50, maxX: 150, alive: true },
+          { x: 220, y: 220, w: 26, h: 26, vx: 1.2, minX: 180, maxX: 280, alive: true },
+          { x: 480, y: 120, w: 26, h: 26, vx: 1.8, minX: 440, maxX: 540, alive: true },
+          { x: 610, y: 170, w: 26, h: 26, vx: 1.4, minX: 570, maxX: 670, alive: true }
+        ],
+        coins: [
+          { x: 100, y: 260, r: 10, collected: false },
+          { x: 230, y: 210, r: 10, collected: false },
+          { x: 360, y: 160, r: 10, collected: false },
+          { x: 490, y: 110, r: 10, collected: false },
+          { x: 620, y: 160, r: 10, collected: false },
+          { x: 740, y: 210, r: 10, collected: false }
+        ],
+        spikes: [
+          { x: 250, y: 228, w: 20, h: 12 },
+          { x: 530, y: 128, w: 20, h: 12 }
+        ],
+        flag: { x: 760, y: 280, w: 18, h: 70 }
+      },
+      // Уровень 7 – Прыжки по движущимся
+      {
+        name: "Уровень 7",
+        startX: 40, startY: 280,
+        bg: ['#5B6F7E', '#99B5C8'],
+        stars: 70,
+        platforms: [
+          { x: 0, y: 350, w: 800, h: 50 },
+          { x: 60, y: 290, w: 70, h: 16 },
+          { x: 180, y: 230, w: 70, h: 16 },
+          { x: 300, y: 170, w: 70, h: 16 },
+          { x: 420, y: 230, w: 70, h: 16 },
+          { x: 540, y: 290, w: 70, h: 16 }
+        ],
+        moving: [
+          { x: 110, y: 200, w: 50, h: 14, startX: 80, endX: 200, speed: 2.0, axis: 'x', dir: 1 },
+          { x: 230, y: 140, w: 50, h: 14, startX: 200, endX: 320, speed: 1.5, axis: 'x', dir: 1 },
+          { x: 470, y: 140, w: 50, h: 14, startX: 440, endX: 560, speed: 1.8, axis: 'x', dir: 1 }
+        ],
+        enemies: [
+          { x: 80, y: 330, w: 26, h: 26, vx: 1.2, minX: 40, maxX: 130, alive: true },
+          { x: 200, y: 210, w: 26, h: 26, vx: 1.6, minX: 160, maxX: 260, alive: true },
+          { x: 340, y: 150, w: 26, h: 26, vx: 1.4, minX: 300, maxX: 400, alive: true },
+          { x: 580, y: 270, w: 26, h: 26, vx: 1.0, minX: 540, maxX: 640, alive: true }
+        ],
+        coins: [
+          { x: 130, y: 170, r: 10, collected: false },
+          { x: 250, y: 110, r: 10, collected: false },
+          { x: 370, y: 200, r: 10, collected: false },
+          { x: 490, y: 110, r: 10, collected: false },
+          { x: 610, y: 260, r: 10, collected: false }
+        ],
+        spikes: [
+          { x: 150, y: 178, w: 20, h: 12 },
+          { x: 400, y: 218, w: 20, h: 12 }
+        ],
+        flag: { x: 750, y: 280, w: 18, h: 70 }
+      },
+      // Уровень 8 – Много шипов и врагов
+      {
+        name: "Уровень 8",
+        startX: 20, startY: 300,
+        bg: ['#4D6272', '#8AA8BC'],
+        stars: 80,
+        platforms: [
+          { x: 0, y: 350, w: 800, h: 50 },
+          { x: 30, y: 290, w: 80, h: 16 },
+          { x: 160, y: 230, w: 80, h: 16 },
+          { x: 290, y: 170, w: 80, h: 16 },
+          { x: 420, y: 230, w: 80, h: 16 },
+          { x: 550, y: 170, w: 80, h: 16 },
+          { x: 680, y: 230, w: 80, h: 16 }
+        ],
+        moving: [
+          { x: 100, y: 200, w: 50, h: 14, startX: 70, endX: 190, speed: 2.2, axis: 'x', dir: 1 },
+          { x: 500, y: 140, w: 50, h: 14, startX: 470, endX: 590, speed: 1.8, axis: 'x', dir: 1 }
+        ],
+        enemies: [
+          { x: 50, y: 330, w: 26, h: 26, vx: 1.5, minX: 20, maxX: 110, alive: true },
+          { x: 180, y: 210, w: 26, h: 26, vx: 1.8, minX: 140, maxX: 240, alive: true },
+          { x: 310, y: 150, w: 26, h: 26, vx: 1.2, minX: 270, maxX: 370, alive: true },
+          { x: 440, y: 210, w: 26, h: 26, vx: 1.6, minX: 400, maxX: 500, alive: true },
+          { x: 570, y: 150, w: 26, h: 26, vx: 1.4, minX: 530, maxX: 630, alive: true }
+        ],
+        coins: [
+          { x: 70, y: 260, r: 10, collected: false },
+          { x: 200, y: 200, r: 10, collected: false },
+          { x: 330, y: 140, r: 10, collected: false },
+          { x: 460, y: 200, r: 10, collected: false },
+          { x: 590, y: 140, r: 10, collected: false },
+          { x: 720, y: 200, r: 10, collected: false }
+        ],
+        spikes: [
+          { x: 80, y: 278, w: 20, h: 12 },
+          { x: 210, y: 218, w: 20, h: 12 },
+          { x: 480, y: 218, w: 20, h: 12 },
+          { x: 610, y: 158, w: 20, h: 12 }
+        ],
+        flag: { x: 760, y: 280, w: 18, h: 70 }
+      },
+      // Уровень 9 – Сложное комбо
+      {
+        name: "Уровень 9",
+        startX: 30, startY: 280,
+        bg: ['#3E5363', '#7A99AE'],
+        stars: 90,
+        platforms: [
+          { x: 0, y: 350, w: 800, h: 50 },
+          { x: 40, y: 290, w: 70, h: 16 },
+          { x: 150, y: 230, w: 70, h: 16 },
+          { x: 260, y: 170, w: 70, h: 16 },
+          { x: 370, y: 230, w: 70, h: 16 },
+          { x: 480, y: 170, w: 70, h: 16 },
+          { x: 590, y: 230, w: 70, h: 16 },
+          { x: 700, y: 290, w: 70, h: 16 }
+        ],
+        moving: [
+          { x: 90, y: 200, w: 50, h: 14, startX: 60, endX: 180, speed: 2.0, axis: 'x', dir: 1 },
+          { x: 200, y: 140, w: 50, h: 14, startX: 170, endX: 290, speed: 1.6, axis: 'x', dir: 1 },
+          { x: 420, y: 140, w: 50, h: 14, startX: 390, endX: 510, speed: 2.0, axis: 'x', dir: 1 },
+          { x: 540, y: 200, w: 50, h: 14, startX: 510, endX: 630, speed: 1.8, axis: 'x', dir: 1 }
+        ],
+        enemies: [
+          { x: 60, y: 330, w: 26, h: 26, vx: 1.8, minX: 30, maxX: 120, alive: true },
+          { x: 170, y: 210, w: 26, h: 26, vx: 1.2, minX: 130, maxX: 230, alive: true },
+          { x: 280, y: 150, w: 26, h: 26, vx: 1.6, minX: 240, maxX: 340, alive: true },
+          { x: 500, y: 150, w: 26, h: 26, vx: 1.4, minX: 460, maxX: 560, alive: true },
+          { x: 610, y: 210, w: 26, h: 26, vx: 1.8, minX: 570, maxX: 670, alive: true }
+        ],
+        coins: [
+          { x: 80, y: 260, r: 10, collected: false },
+          { x: 190, y: 200, r: 10, collected: false },
+          { x: 300, y: 140, r: 10, collected: false },
+          { x: 410, y: 200, r: 10, collected: false },
+          { x: 520, y: 140, r: 10, collected: false },
+          { x: 630, y: 200, r: 10, collected: false },
+          { x: 740, y: 260, r: 10, collected: false }
+        ],
+        spikes: [
+          { x: 110, y: 278, w: 20, h: 12 },
+          { x: 340, y: 218, w: 20, h: 12 },
+          { x: 460, y: 158, w: 20, h: 12 },
+          { x: 650, y: 218, w: 20, h: 12 }
+        ],
+        flag: { x: 760, y: 280, w: 18, h: 70 }
+      },
+      // Уровень 10 – Финальный босс (сложный)
+      {
+        name: "Уровень 10",
+        startX: 20, startY: 280,
+        bg: ['#2C3E4F', '#5C7A91'],
+        stars: 100,
+        platforms: [
+          { x: 0, y: 350, w: 800, h: 50 },
+          { x: 30, y: 290, w: 70, h: 16 },
+          { x: 140, y: 230, w: 70, h: 16 },
+          { x: 250, y: 170, w: 70, h: 16 },
+          { x: 360, y: 110, w: 70, h: 16 },
+          { x: 470, y: 170, w: 70, h: 16 },
+          { x: 580, y: 230, w: 70, h: 16 },
+          { x: 690, y: 290, w: 70, h: 16 }
+        ],
+        moving: [
+          { x: 80, y: 200, w: 50, h: 14, startX: 50, endX: 170, speed: 2.2, axis: 'x', dir: 1 },
+          { x: 190, y: 140, w: 50, h: 14, startX: 160, endX: 280, speed: 1.8, axis: 'x', dir: 1 },
+          { x: 300, y: 80, w: 50, h: 14, startX: 270, endX: 390, speed: 2.0, axis: 'x', dir: 1 },
+          { x: 520, y: 140, w: 50, h: 14, startX: 490, endX: 610, speed: 1.6, axis: 'x', dir: 1 },
+          { x: 630, y: 200, w: 50, h: 14, startX: 600, endX: 720, speed: 2.0, axis: 'x', dir: 1 }
+        ],
+        enemies: [
+          { x: 50, y: 330, w: 26, h: 26, vx: 2.0, minX: 20, maxX: 110, alive: true },
+          { x: 160, y: 210, w: 26, h: 26, vx: 1.5, minX: 120, maxX: 220, alive: true },
+          { x: 270, y: 150, w: 26, h: 26, vx: 1.8, minX: 230, maxX: 330, alive: true },
+          { x: 380, y: 90, w: 26, h: 26, vx: 1.2, minX: 340, maxX: 440, alive: true },
+          { x: 490, y: 150, w: 26, h: 26, vx: 1.6, minX: 450, maxX: 550, alive: true },
+          { x: 600, y: 210, w: 26, h: 26, vx: 1.4, minX: 560, maxX: 660, alive: true }
+        ],
+        coins: [
+          { x: 70, y: 260, r: 10, collected: false },
+          { x: 180, y: 200, r: 10, collected: false },
+          { x: 290, y: 140, r: 10, collected: false },
+          { x: 400, y: 80, r: 10, collected: false },
+          { x: 510, y: 140, r: 10, collected: false },
+          { x: 620, y: 200, r: 10, collected: false },
+          { x: 730, y: 260, r: 10, collected: false }
+        ],
+        spikes: [
+          { x: 100, y: 278, w: 20, h: 12 },
+          { x: 220, y: 218, w: 20, h: 12 },
+          { x: 340, y: 158, w: 20, h: 12 },
+          { x: 460, y: 98, w: 20, h: 12 },
+          { x: 580, y: 158, w: 20, h: 12 },
+          { x: 700, y: 218, w: 20, h: 12 }
+        ],
+        flag: { x: 760, y: 280, w: 18, h: 70 }
+      }
+    ];
+
+    // ---------- Загрузка уровня ----------
+    function loadLevel(index) {
+      const data = LEVELS[index];
+      if (!data) return;
+      currentLevelIndex = index;
+      playerStartX = data.startX;
+      playerStartY = data.startY;
+
+      platforms = data.platforms.map(p => ({ ...p }));
+      movingPlatforms = data.moving.map(m => ({ ...m, x: m.x, y: m.y }));
+      enemies = data.enemies.map(e => ({ ...e }));
+      coins = data.coins.map(c => ({ ...c }));
+      spikes = data.spikes.map(s => ({ ...s }));
+      flag = data.flag ? { ...data.flag } : null;
+
+      // Фон
+      bgGradient = ctx.createLinearGradient(0, 0, 0, H);
+      bgGradient.addColorStop(0, data.bg[0]);
+      bgGradient.addColorStop(1, data.bg[1]);
+      starField = data.stars > 0 ? generateStars(data.stars) : [];
+
+      // Сброс игрока
+      player.x = playerStartX;
+      player.y = playerStartY;
+      player.vx = 0;
+      player.vy = 0;
+      player.onGround = false;
+      player.dead = false;
+      player.won = false;
+      player.finished = false;
+      player.targetX = playerStartX;
+      player.keyboardActive = false;
+
+      levelSpan.textContent = data.name;
+      statusSpan.textContent = 'Игра';
+      updateUI();
+    }
+
+    // ---------- UI ----------
+    function updateUI() {
+      coinSpan.textContent = player.coins;
+      lifeSpan.textContent = player.lives;
+    }
+
+    // ---------- Столкновения ----------
+    function rectCollide(a, b) {
+      return a.x < b.x + b.w && a.x + a.w > b.x &&
+             a.y < b.y + b.h && a.y + a.h > b.y;
+    }
+
+    function handlePlatformCollisions() {
+      const p = player;
+      // Обычные платформы
+      for (let plat of platforms) {
+        if (rectCollide(p, plat)) {
+          const overlapX = Math.min(p.x + p.w, plat.x + plat.w) - Math.max(p.x, plat.x);
+          const overlapY = Math.min(p.y + p.h, plat.y + plat.h) - Math.max(p.y, plat.y);
+          if (overlapX < overlapY) {
+            if (p.vx > 0) p.x = plat.x - p.w;
+            else if (p.vx < 0) p.x = plat.x + plat.w;
+            p.vx = 0;
+          } else {
+            if (p.vy > 0) {
+              p.y = plat.y - p.h;
+              p.vy = 0;
+              p.onGround = true;
+            } else if (p.vy < 0) {
+              p.y = plat.y + plat.h;
+              p.vy = 0;
+            }
+          }
+        }
+      }
+      // Движущиеся платформы
+      for (let mp of movingPlatforms) {
+        if (rectCollide(p, mp)) {
+          const overlapX = Math.min(p.x + p.w, mp.x + mp.w) - Math.max(p.x, mp.x);
+          const overlapY = Math.min(p.y + p.h, mp.y + mp.h) - Math.max(p.y, mp.y);
+          if (overlapX < overlapY) {
+            if (p.vx > 0) p.x = mp.x - p.w;
+            else if (p.vx < 0) p.x = mp.x + mp.w;
+            p.vx = 0;
+          } else {
+            if (p.vy > 0) {
+              p.y = mp.y - p.h;
+              p.vy = 0;
+              p.onGround = true;
+              // Если платформа движется по горизонтали, передаём скорость игроку
+              if (mp.axis === 'x') {
+                p.x += mp.speed * mp.dir;
+              }
+            } else if (p.vy < 0) {
+              p.y = mp.y + mp.h;
+              p.vy = 0;
+            }
+          }
+        }
+      }
+    }
+
+    // ---------- Шипы ----------
+    function checkSpikes() {
+      for (let s of spikes) {
+        if (rectCollide(player, s)) {
+          playerHit();
+          break;
+        }
+      }
+    }
+
+    // ---------- Враги ----------
+    function updateEnemies() {
+      for (let e of enemies) {
+        if (!e.alive) continue;
+        e.x += e.vx;
+        if (e.x < e.minX || e.x + e.w > e.maxX) e.vx *= -1;
+        if (rectCollide(player, e)) {
+          if (player.vy > 0 && player.y + player.h - e.y < 20) {
+            e.alive = false;
+            player.vy = -8;
+            player.coins += 2;
+            updateUI();
+          } else {
+            playerHit();
+          }
+        }
+      }
+    }
+
+    // ---------- Монеты ----------
+    function collectCoins() {
+      for (let c of coins) {
+        if (c.collected) continue;
+        const cx = player.x + player.w/2;
+        const cy = player.y + player.h/2;
+        const dx = cx - c.x;
+        const dy = cy - c.y;
+        if (Math.sqrt(dx*dx + dy*dy) < c.r + 14) {
+          c.collected = true;
+          player.coins++;
+          updateUI();
+        }
+      }
+    }
+
+    // ---------- Флаг ----------
+    function checkFlag() {
+      if (!flag || player.won || player.finished || player.dead) return;
+      if (player.x + player.w > flag.x && player.x < flag.x + flag.w &&
+          player.y + player.h > flag.y && player.y < flag.y + flag.h) {
+        player.won = true;
+        nextLevel();
+      }
+    }
+
+    // ---------- Потеря жизни ----------
+    function playerHit() {
+      if (player.dead || player.finished) return;
+      player.lives--;
+      updateUI();
+      if (player.lives <= 0) {
+        player.dead = true;
+        statusSpan.textContent = '💀 GAME OVER';
+        return;
+      }
+      // Респавн
+      player.x = playerStartX;
+      player.y = playerStartY;
+      player.vx = 0;
+      player.vy = 0;
+      player.onGround = false;
+      player.targetX = playerStartX;
+      // Воскресить врагов
+      for (let e of enemies) e.alive = true;
+      statusSpan.textContent = 'Игра';
+    }
+
+    // ---------- Следующий уровень ----------
+    function nextLevel() {
+      if (currentLevelIndex < LEVELS.length - 1) {
+        loadLevel(currentLevelIndex + 1);
+        statusSpan.textContent = 'Уровень пройден!';
+        setTimeout(() => { statusSpan.textContent = 'Игра'; }, 800);
+      } else {
+        player.finished = true;
+        statusSpan.textContent = '🎉 ПОЗДРАВЛЯЕМ! ВСЕ УРОВНИ!';
+      }
+      updateUI();
+    }
+
+    // ---------- Обновление движущихся платформ ----------
+    function updateMovingPlatforms() {
+      for (let mp of movingPlatforms) {
+        if (mp.axis === 'x') {
+          mp.x += mp.speed * mp.dir;
+          if (mp.x <= mp.startX || mp.x + mp.w >= mp.endX) mp.dir *= -1;
+        } else if (mp.axis === 'y') {
+          mp.y += mp.speed * mp.dir;
+          if (mp.y <= mp.startY || mp.y + mp.h >= mp.endY) mp.dir *= -1;
+        }
+      }
+    }
+
+    // ---------- Обновление игрока ----------
+    function updatePlayer() {
+      if (player.dead || player.finished) return;
+
+      // ---- Управление с клавиатуры (если нажата стрелка) ----
+      let keyboardControl = keys.left || keys.right;
+      if (keyboardControl) {
+        player.keyboardActive = true;
+        // классическое ускорение
+        if (keys.left) player.vx -= 0.7;
+        if (keys.right) player.vx += 0.7;
+        player.vx = Math.min(Math.max(player.vx, -MAX_SPEED), MAX_SPEED);
+      } else {
+        // Если клавиши отпущены, плавно тормозим (трение)
+        if (player.keyboardActive) {
+          player.vx *= FRICTION;
+          if (Math.abs(player.vx) < 0.1) player.vx = 0;
+          player.keyboardActive = false;
+        }
+        // Следование за мышью (если нет активного клавиатурного управления)
+        if (!player.keyboardActive) {
+          const dx = player.targetX - player.x;
+          const move = Math.sign(dx) * Math.min(Math.abs(dx), FOLLOW_SPEED * 2);
+          player.vx += move * 0.25;
+          player.vx = Math.min(Math.max(player.vx, -MAX_SPEED), MAX_SPEED);
+        }
+      }
+
+      // Прыжок
+      if (keys.jumpPressed && player.onGround) {
+        player.vy = JUMP_FORCE;
+        player.onGround = false;
+        keys.jumpPressed = false;
+      }
+
+      // Гравитация
+      player.vy += GRAVITY;
+      if (player.vy > 13) player.vy = 13;
+
+      // Движение по X
+      player.x += player.vx;
+      // Столкновения по X
+      for (let plat of platforms) {
+        if (rectCollide(player, plat)) {
+          if (player.vx > 0) player.x = plat.x - player.w;
+          else if (player.vx < 0) player.x = plat.x + plat.w;
+          player.vx = 0;
+        }
+      }
+      for (let mp of movingPlatforms) {
+        if (rectCollide(player, mp)) {
+          if (player.vx > 0) player.x = mp.x - player.w;
+          else if (player.vx < 0) player.x = mp.x + mp.w;
+          player.vx = 0;
+        }
+      }
+
+      // Движение по Y
+      player.y += player.vy;
+      player.onGround = false;
+      for (let plat of platforms) {
+        if (rectCollide(player, plat)) {
+          if (player.vy > 0) {
+            player.y = plat.y - player.h;
+            player.vy = 0;
+            player.onGround = true;
+          } else if (player.vy < 0) {
+            player.y = plat.y + plat.h;
+            player.vy = 0;
+          }
+        }
+      }
+      for (let mp of movingPlatforms) {
+        if (rectCollide(player, mp)) {
+          if (player.vy > 0) {
+            player.y = mp.y - player.h;
+            player.vy = 0;
+            player.onGround = true;
+          } else if (player.vy < 0) {
+            player.y = mp.y + mp.h;
+            player.vy = 0;
+          }
+        }
+      }
+
+      // Падение
+      if (player.y > 550) {
+        playerHit();
+        if (!player.dead && player.lives > 0) {
+          player.x = playerStartX;
+          player.y = playerStartY;
+          player.vx = 0;
+          player.vy = 0;
+          player.targetX = playerStartX;
+        }
+      }
+
+      // Обновление врагов, монет, шипов, флага
+      updateMovingPlatforms();
+      updateEnemies();
+      collectCoins();
+      checkSpikes();
+      checkFlag();
+      updateUI();
+    }
+
+    // ---------- Отрисовка ----------
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+
+      // Фон (градиент)
+      ctx.fillStyle = bgGradient || '#87CEEB';
+      ctx.fillRect(0, 0, W, H);
+
+      // Звёзды
+      if (starField.length) {
+        for (let s of starField) {
+          ctx.globalAlpha = s.a * 0.6;
+          ctx.fillStyle = '#fff';
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      // Платформы (обычные)
+      ctx.shadowColor = 'rgba(0,0,0,0.3)';
+      ctx.shadowBlur = 8;
+      for (let plat of platforms) {
+        const isGround = plat.y >= 340;
+        ctx.fillStyle = isGround ? '#5D8A3C' : '#8B6B4D';
+        ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#3D2B1F';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(plat.x, plat.y, plat.w, plat.h);
+        ctx.shadowBlur = 8;
+      }
+      // Движущиеся платформы
+      for (let mp of movingPlatforms) {
+        ctx.fillStyle = '#B8860B';
+        ctx.shadowColor = '#8B6508';
+        ctx.shadowBlur = 12;
+        ctx.fillRect(mp.x, mp.y, mp.w, mp.h);
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#6B4F1F';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(mp.x, mp.y, mp.w, mp.h);
+      }
+      ctx.shadowBlur = 0;
+
+      // Шипы
+      for (let s of spikes) {
+        ctx.fillStyle = '#8B0000';
+        ctx.shadowColor = '#550000';
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.moveTo(s.x, s.y + s.h);
+        ctx.lineTo(s.x + s.w/2, s.y);
+        ctx.lineTo(s.x + s.w, s.y + s.h);
+        ctx.closePath();
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      // Монеты (с анимацией)
+      const time = Date.now() / 300;
+      for (let c of coins) {
+        if (c.collected) continue;
+        const pulse = Math.sin(time + c.x) * 2;
+        const r = c.r + pulse * 0.3;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, r, 0, Math.PI*2);
+        ctx.fillStyle = '#FFD700';
+        ctx.shadowColor = '#FFAA00';
+        ctx.shadowBlur = 15;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#B8860B';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        // Блик
+        ctx.beginPath();
+        ctx.arc(c.x-3, c.y-4, 4, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(255,255,200,0.7)';
+        ctx.fill();
+      }
+
+      // Враги
+      for (let e of enemies) {
+        if (!e.alive) continue;
+        ctx.fillStyle = '#8B0000';
+        ctx.shadowColor = '#550000';
+        ctx.shadowBlur = 10;
+        ctx.fillRect(e.x, e.y, e.w, e.h);
+        ctx.shadowBlur = 0;
+        // глаза
+        ctx.fillStyle = 'white';
+        ctx.fillRect(e.x+4, e.y+6, 5, 5);
+        ctx.fillRect(e.x+e.w-9, e.y+6, 5, 5);
+        ctx.fillStyle = 'black';
+        ctx.fillRect(e.x+6, e.y+8, 2, 3);
+        ctx.fillRect(e.x+e.w-7, e.y+8, 2, 3);
+        // ножки
+        ctx.fillStyle = '#4A2A1A';
+        ctx.fillRect(e.x+3, e.y+e.h-6, 5, 6);
+        ctx.fillRect(e.x+e.w-8, e.y+e.h-6, 5, 6);
+      }
+
+      // Флаг
+      if (flag) {
+        ctx.fillStyle = '#D2B48C';
+        ctx.fillRect(flag.x, flag.y, 4, flag.h);
+        ctx.fillStyle = '#FF0000';
+        ctx.shadowColor = '#990000';
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.moveTo(flag.x+4, flag.y);
+        ctx.lineTo(flag.x+32, flag.y+16);
+        ctx.lineTo(flag.x+4, flag.y+32);
+        ctx.closePath();
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = 'white';
+        ctx.font = '18px Arial';
+        ctx.fillText('⭐', flag.x+8, flag.y+20);
+      }
+
+      // Игрок (Марио)
+      ctx.shadowBlur = 0;
+      // Тело
+      ctx.fillStyle = '#E53030';
+      ctx.fillRect(player.x, player.y, player.w, player.h);
+      // Голова
+      ctx.fillStyle = '#F5D0B8';
+      ctx.fillRect(player.x+4, player.y-8, 20, 10);
+      // Шляпа
+      ctx.fillStyle = '#E53030';
+      ctx.fillRect(player.x+2, player.y-14, 24, 10);
+      ctx.fillRect(player.x-2, player.y-10, 32, 6);
+      // Усы
+      ctx.fillStyle = '#4A2A1A';
+      ctx.fillRect(player.x+6, player.y+6, 16, 4);
+      // Глаза
+      ctx.fillStyle = 'white';
+      ctx.fillRect(player.x+6, player.y-4, 5, 5);
+      ctx.fillRect(player.x+17, player.y-4, 5, 5);
+      ctx.fillStyle = 'black';
+      ctx.fillRect(player.x+8, player.y-2, 2, 3);
+      ctx.fillRect(player.x+19, player.y-2, 2, 3);
+      // Пуговицы
+      ctx.fillStyle = '#FFD700';
+      ctx.fillRect(player.x+6, player.y+14, 3, 3);
+      ctx.fillRect(player.x+19, player.y+14, 3, 3);
+      // Ноги
+      ctx.fillStyle = '#1E3A8A';
+      ctx.fillRect(player.x+2, player.y+player.h-6, 9, 6);
+      ctx.fillRect(player.x+17, player.y+player.h-6, 9, 6);
+
+      // Тень
+      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+      ctx.beginPath();
+      ctx.ellipse(player.x+player.w/2, player.y+player.h+4, 16, 5, 0, 0, Math.PI*2);
+      ctx.fill();
+
+      // UI на холсте
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.fillRect(10, 10, 160, 30);
+      ctx.fillStyle = '#fff';
+      ctx.font = '16px Arial';
+      ctx.fillText('🪙 ' + player.coins + '  ❤️ ' + player.lives, 20, 33);
+
+      // Сообщения
+      if (player.dead) {
+        ctx.fillStyle = 'rgba(0,0,0,0.65)';
+        ctx.fillRect(0, 150, W, 90);
+        ctx.fillStyle = '#fff';
+        ctx.font = '44px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('💀 GAME OVER', W/2, 210);
+        ctx.font = '18px Arial';
+        ctx.fillText('Нажмите R для рестарта', W/2, 245);
+      } else if (player.finished) {
+        ctx.fillStyle = 'rgba(0,0,0,0.65)';
+        ctx.fillRect(0, 150, W, 90);
+        ctx.fillStyle = '#FFD700';
+        ctx.font = '38px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('🎉 ПОБЕДА! ВСЕ УРОВНИ!', W/2, 210);
+        ctx.font = '18px Arial';
+        ctx.fillStyle = '#fff';
+        ctx.fillText('Нажмите R для рестарта', W/2, 245);
+      }
+      ctx.textAlign = 'left';
+    }
+
+    // ---------- Цикл ----------
+    function gameLoop() {
+      updatePlayer();
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // ---------- Рестарт ----------
+    function restartGame() {
+      player.lives = 3;
+      player.coins = 0;
+      currentLevelIndex = 0;
+      loadLevel(0);
+      statusSpan.textContent = 'Игра';
+      updateUI();
+    }
+
+    // ---------- События мыши ----------
+    function handleMouseMove(e) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const mouseX = (e.clientX - rect.left) * scaleX;
+      const clamped = Math.max(0, Math.min(mouseX - player.w/2, W - player.w));
+      if (!player.keyboardActive) {
+        player.targetX = clamped;
+      }
+    }
+
+    function handleMouseDown(e) {
+      if (e.button === 0) {
+        e.preventDefault();
+        keys.jumpPressed = true;
+      }
+    }
+
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+    canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('mousedown', handleMouseDown);
+
+    // ---------- Клавиатура ----------
+    document.addEventListener('keydown', (e) => {
+      const key = e.key;
+      if (key === 'ArrowLeft') { keys.left = true; e.preventDefault(); }
+      if (key === 'ArrowRight') { keys.right = true; e.preventDefault(); }
+      if (key === 'ArrowUp' || key === ' ') {
+        keys.jump = true;
+        keys.jumpPressed = true;
+        e.preventDefault();
+      }
+      if (key === 'r' || key === 'R') {
+        restartGame();
+        e.preventDefault();
+      }
+    });
+
+    document.addEventListener('keyup', (e) => {
+      const key = e.key;
+      if (key === 'ArrowLeft') { keys.left = false; e.preventDefault(); }
+      if (key === 'ArrowRight') { keys.right = false; e.preventDefault(); }
+      if (key === 'ArrowUp' || key === ' ') {
+        keys.jump = false;
+        e.preventDefault();
+      }
+    });
+
+    // ---------- Старт ----------
+    loadLevel(0);
+    gameLoop();
+  })();
+</script>
+</body>
+</html>
