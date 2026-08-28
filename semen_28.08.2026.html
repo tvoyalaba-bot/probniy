@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Супер-реалистичные танки, взрывы, 1-е / 3-е лицо</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Arial, sans-serif; }
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            font-size: 20px;
+            text-shadow: 0 0 10px rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.5);
+            padding: 12px 24px;
+            border-radius: 12px;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255,255,255,0.15);
+            pointer-events: none;
+            z-index: 10;
+            user-select: none;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        #info .item { display: flex; align-items: center; gap: 6px; }
+        #health { color: #ff6b6b; font-weight: bold; }
+        #score { color: #69db7c; font-weight: bold; }
+        #enemyCount { color: #ffd93d; font-weight: bold; }
+        #cameraMode { color: #74c0fc; font-weight: bold; }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 40px;
+            pointer-events: none;
+            z-index: 10;
+            text-shadow: 0 0 8px rgba(0,0,0,0.9);
+            font-family: monospace;
+            line-height: 1;
+            opacity: 0.9;
+        }
+        #crosshair::before { content: '+'; }
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(8px);
+            color: white;
+            padding: 40px 60px;
+            border-radius: 24px;
+            text-align: center;
+            border: 2px solid #ffaa00;
+            display: none;
+            z-index: 20;
+            pointer-events: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+        }
+        #gameOver h1 { font-size: 48px; margin: 0 0 10px; }
+        #gameOver p { font-size: 24px; margin: 10px 0; }
+        #gameOver button {
+            font-size: 24px;
+            padding: 12px 36px;
+            margin-top: 20px;
+            background: #ffaa00;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: bold;
+            color: #222;
+            transition: 0.2s;
+        }
+        #gameOver button:hover { background: #ffcc44; transform: scale(1.05); }
+        #controlsHint {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.6);
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(2px);
+            padding: 8px 24px;
+            border-radius: 30px;
+            font-size: 14px;
+            border: 1px solid rgba(255,255,255,0.1);
+            pointer-events: none;
+            z-index: 10;
+            user-select: none;
+            white-space: nowrap;
+        }
+        #controlsHint span { margin: 0 10px; }
+        #clickToLock {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            background: rgba(0,0,0,0.6);
+            padding: 16px 32px;
+            border-radius: 40px;
+            font-size: 20px;
+            border: 2px solid #ffaa00;
+            cursor: pointer;
+            z-index: 30;
+            backdrop-filter: blur(4px);
+            transition: 0.3s;
+            pointer-events: auto;
+        }
+        #clickToLock:hover { background: #ffaa00; color: #222; }
+        .lock-hint { animation: pulse 1.5s infinite; }
+        @keyframes pulse {
+            0% { opacity: 0.7; transform: translateX(-50%) scale(1); }
+            50% { opacity: 1; transform: translateX(-50%) scale(1.03); }
+            100% { opacity: 0.7; transform: translateX(-50%) scale(1); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="info">
+        <div class="item">❤️ <span id="health">3</span></div>
+        <div class="item">🎯 <span id="score">0</span></div>
+        <div class="item">💥 <span id="enemyCount">0</span></div>
+        <div class="item">📷 <span id="cameraMode">1-е лицо</span></div>
+    </div>
+    <div id="crosshair"></div>
+    <div id="gameOver">
+        <h1>💥 ИГРА ОКОНЧЕНА</h1>
+        <p>Счёт: <span id="finalScore">0</span></p>
+        <button id="restartBtn">🔄 ЗАНОВО</button>
+    </div>
+    <div id="controlsHint">
+        <span>WASD — движение</span>
+        <span>🖱️ Мышь — осмотр</span>
+        <span>🔫 ЛКМ / Пробел — стрельба</span>
+        <span>⌨️ 1 — переключить вид</span>
+    </div>
+    <div id="clickToLock" class="lock-hint">🔒 Нажмите, чтобы захватить мышь</div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // ============================================================
+        // 1. СЦЕНА, КАМЕРА, РЕНДЕРЕР
+        // ============================================================
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        scene.fog = new THREE.Fog(0x87CEEB, 60, 120);
+
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 200);
+        camera.position.set(0, 1.6, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        document.body.appendChild(renderer.domElement);
+
+        // ============================================================
+        // 2. ОСВЕЩЕНИЕ
+        // ============================================================
+        const ambientLight = new THREE.AmbientLight(0x404060, 0.5);
+        scene.add(ambientLight);
+        const hemiLight = new THREE.HemisphereLight(0x87CEEB, 0x3a7d44, 0.8);
+        scene.add(hemiLight);
+        const sunLight = new THREE.DirectionalLight(0xffeedd, 1.2);
+        sunLight.position.set(30, 40, 20);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 4096;
+        sunLight.shadow.mapSize.height = 4096;
+        sunLight.shadow.camera.near = 1;
+        sunLight.shadow.camera.far = 100;
+        sunLight.shadow.camera.left = -50;
+        sunLight.shadow.camera.right = 50;
+        sunLight.shadow.camera.top = 50;
+        sunLight.shadow.camera.bottom = -50;
+        sunLight.shadow.bias = -0.001;
+        scene.add(sunLight);
+        const fillLight = new THREE.DirectionalLight(0x88aaff, 0.3);
+        fillLight.position.set(-20, 10, -30);
+        scene.add(fillLight);
+
+        // ============================================================
+        // 3. КАРТА + ДЕКОР
+        // ============================================================
+        const groundSize = 60;
+
+        function createGrassTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#4caf50';
+            ctx.fillRect(0, 0, 512, 512);
+            for (let i = 0; i < 8000; i++) {
+                const x = Math.random() * 512;
+                const y = Math.random() * 512;
+                const len = 3 + Math.random() * 8;
+                const angle = Math.random() * Math.PI * 2;
+                ctx.strokeStyle = `rgba(30, ${80 + Math.random()*80}, 20, ${0.3+Math.random()*0.4})`;
+                ctx.lineWidth = 1 + Math.random() * 2;
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + Math.cos(angle) * len, y + Math.sin(angle) * len);
+                ctx.stroke();
+            }
+            for (let i = 0; i < 200; i++) {
+                const x = Math.random() * 512;
+                const y = Math.random() * 512;
+                const r = 5 + Math.random() * 20;
+                const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+                grad.addColorStop(0, `rgba(30, 100, 20, 0.3)`);
+                grad.addColorStop(1, `rgba(30, 100, 20, 0)`);
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(8, 8);
+            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            return texture;
+        }
+
+        const grassTexture = createGrassTexture();
+        const groundMat = new THREE.MeshStandardMaterial({
+            map: grassTexture,
+            roughness: 0.8,
+            metalness: 0.0,
+            side: THREE.DoubleSide
+        });
+        const groundGeo = new THREE.PlaneGeometry(groundSize, groundSize);
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -0.05;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        const gridHelper = new THREE.GridHelper(groundSize, 20, 0x88ff88, 0x336633);
+        gridHelper.position.y = 0.01;
+        scene.add(gridHelper);
+
+        function createTree(x, z) {
+            const group = new THREE.Group();
+            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8B5A2B, roughness: 0.9 });
+            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.5, 2, 6), trunkMat);
+            trunk.position.y = 1;
+            trunk.castShadow = true;
+            trunk.receiveShadow = true;
+            group.add(trunk);
+            const leafMat = new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.6 });
+            const crown = new THREE.Mesh(new THREE.ConeGeometry(1.6, 2.5, 7), leafMat);
+            crown.position.y = 2.8;
+            crown.castShadow = true;
+            crown.receiveShadow = true;
+            group.add(crown);
+            const crown2 = new THREE.Mesh(new THREE.ConeGeometry(1.2, 2, 7), leafMat);
+            crown2.position.y = 4.0;
+            crown2.castShadow = true;
+            crown2.receiveShadow = true;
+            group.add(crown2);
+            group.position.set(x, 0, z);
+            group.rotation.y = Math.random() * Math.PI * 2;
+            return group;
+        }
+
+        function createRock(x, z) {
+            const rockMat = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.9, metalness: 0.1 });
+            const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5 + Math.random() * 0.6), rockMat);
+            rock.position.set(x, 0.2, z);
+            rock.rotation.set(Math.random(), Math.random(), Math.random());
+            rock.castShadow = true;
+            rock.receiveShadow = true;
+            return rock;
+        }
+
+        for (let i = 0; i < 80; i++) {
+            let x, z, ok;
+            let attempts = 0;
+            do {
+                x = (Math.random() - 0.5) * (groundSize - 6);
+                z = (Math.random() - 0.5) * (groundSize - 6);
+                ok = Math.abs(x) > 4 || Math.abs(z) > 4;
+                attempts++;
+            } while (!ok && attempts < 20);
+            if (ok) {
+                const obj = Math.random() > 0.5 ? createTree(x, z) : createRock(x, z);
+                scene.add(obj);
+            }
+        }
+
+        // ============================================================
+        // 4. ГЕНЕРАЦИЯ ТЕКСТУР КАМУФЛЯЖА
+        // ============================================================
+        function createCamoTexture(baseColor, patternColor1, patternColor2) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            // Заливка базовым цветом
+            ctx.fillStyle = baseColor;
+            ctx.fillRect(0, 0, 256, 256);
+            // Пятна камуфляжа
+            const colors = [patternColor1, patternColor2];
+            for (let i = 0; i < 30; i++) {
+                const x = Math.random() * 256;
+                const y = Math.random() * 256;
+                const r = 20 + Math.random() * 60;
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                ctx.fillStyle = color;
+                ctx.globalAlpha = 0.5 + Math.random() * 0.4;
+                ctx.beginPath();
+                ctx.ellipse(x, y, r * (0.5 + Math.random()), r * (0.5 + Math.random()), Math.random() * Math.PI, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            // Линии и детали
+            ctx.globalAlpha = 0.3;
+            ctx.strokeStyle = patternColor1;
+            ctx.lineWidth = 2;
+            for (let i = 0; i < 10; i++) {
+                const x = Math.random() * 256;
+                const y = Math.random() * 256;
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + 30 - Math.random() * 60, y + 30 - Math.random() * 60);
+                ctx.stroke();
+            }
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(1, 1);
+            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            return texture;
+        }
+
+        // Текстуры для игрока и врагов
+        const playerCamo = createCamoTexture('#4a7c3f', '#2d5a2a', '#6b8c42');
+        const enemyCamo = createCamoTexture('#8c3a3a', '#5c2020', '#a64a4a');
+
+        // ============================================================
+        // 5. РЕАЛИСТИЧНЫЙ ТАНК (МАКСИМАЛЬНО ДЕТАЛИЗИРОВАННЫЙ)
+        // ============================================================
+        function createRealisticTank(color, camoTexture, isPlayer = true) {
+            const tank = new THREE.Group();
+
+            // ---- КОРПУС С ТЕКСТУРОЙ КАМУФЛЯЖА ----
+            const bodyMat = new THREE.MeshStandardMaterial({
+                map: camoTexture,
+                roughness: 0.5,
+                metalness: 0.3
+            });
+            // Основной блок
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.5, 2.6), bodyMat);
+            body.position.y = 0.45;
+            body.castShadow = true;
+            body.receiveShadow = true;
+            tank.add(body);
+
+            // Наклонные скулы (добавим скошенные бронелисты)
+            const slopeMat = new THREE.MeshStandardMaterial({
+                color: 0x3a5a3a,
+                roughness: 0.7,
+                metalness: 0.2
+            });
+            // Передние скулы
+            const slopeGeo = new THREE.CylinderGeometry(0.1, 0.3, 0.3, 4);
+            const slopeL = new THREE.Mesh(slopeGeo, slopeMat);
+            slopeL.position.set(-0.8, 0.25, 1.3);
+            slopeL.rotation.z = 0.3;
+            slopeL.rotation.y = -0.3;
+            slopeL.scale.set(1, 1, 0.6);
+            slopeL.castShadow = true;
+            tank.add(slopeL);
+            const slopeR = new THREE.Mesh(slopeGeo, slopeMat);
+            slopeR.position.set(0.8, 0.25, 1.3);
+            slopeR.rotation.z = -0.3;
+            slopeR.rotation.y = 0.3;
+            slopeR.scale.set(1, 1, 0.6);
+            slopeR.castShadow = true;
+            tank.add(slopeR);
+
+            // Борта с наклоном (добавим треугольные призмы)
+            const sideMat = new THREE.MeshStandardMaterial({ color: 0x3a5a3a, roughness: 0.7 });
+            const sideGeo = new THREE.BoxGeometry(0.1, 0.3, 2.2);
+            const sideL = new THREE.Mesh(sideGeo, sideMat);
+            sideL.position.set(-0.95, 0.45, 0);
+            sideL.rotation.z = 0.2;
+            sideL.castShadow = true;
+            tank.add(sideL);
+            const sideR = new THREE.Mesh(sideGeo, sideMat);
+            sideR.position.set(0.95, 0.45, 0);
+            sideR.rotation.z = -0.2;
+            sideR.castShadow = true;
+            tank.add(sideR);
+
+            // Решётка моторного отделения
+            const grillMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 });
+            const grill = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.08, 0.3), grillMat);
+            grill.position.set(0, 0.5, -1.4);
+            tank.add(grill);
+            const grill2 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.08, 0.1), grillMat);
+            grill2.position.set(0, 0.58, -1.4);
+            tank.add(grill2);
+
+            // ---- ГУСЕНИЦЫ С ТЕКСТУРОЙ ----
+            // Создадим текстуру для гусеничных траков
+            function createTrackTexture() {
+                const c = document.createElement('canvas');
+                c.width = 128;
+                c.height = 64;
+                const ctx = c.getContext('2d');
+                ctx.fillStyle = '#333';
+                ctx.fillRect(0, 0, 128, 64);
+                for (let i = 0; i < 20; i++) {
+                    const x = i * 6.4;
+                    ctx.fillStyle = '#555';
+                    ctx.fillRect(x, 0, 4, 64);
+                    ctx.fillStyle = '#222';
+                    ctx.fillRect(x + 2, 8, 2, 48);
+                }
+                const tex = new THREE.CanvasTexture(c);
+                tex.wrapS = THREE.RepeatWrapping;
+                tex.wrapT = THREE.RepeatWrapping;
+                tex.repeat.set(4, 1);
+                return tex;
+            }
+            const trackTex = createTrackTexture();
+            const trackMat = new THREE.MeshStandardMaterial({ map: trackTex, roughness: 0.9 });
+
+            function createTrackStrip(xOffset) {
+                const group = new THREE.Group();
+                const strip = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.15, 2.8), trackMat);
+                strip.position.set(0, 0.08, 0);
+                strip.castShadow = true;
+                strip.receiveShadow = true;
+                group.add(strip);
+
+                // Катки (теперь с металлическим блеском)
+                const wheelMat = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.4, metalness: 0.7 });
+                for (let i = -2; i <= 2; i++) {
+                    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.12, 10), wheelMat);
+                    wheel.rotation.x = Math.PI / 2;
+                    wheel.position.set(0, 0.08, i * 0.55);
+                    wheel.castShadow = true;
+                    wheel.receiveShadow = true;
+                    group.add(wheel);
+                    // Оси
+                    const axleMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.8, roughness: 0.3 });
+                    const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.25, 6), axleMat);
+                    axle.rotation.x = Math.PI / 2;
+                    axle.position.set(0.18, 0.08, i * 0.55);
+                    group.add(axle);
+                    const axle2 = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.25, 6), axleMat);
+                    axle2.rotation.x = Math.PI / 2;
+                    axle2.position.set(-0.18, 0.08, i * 0.55);
+                    group.add(axle2);
+                }
+                // Натяжные колёса (передние и задние)
+                const idlerMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.5, roughness: 0.5 });
+                const idlerL = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.12, 8), idlerMat);
+                idlerL.rotation.x = Math.PI / 2;
+                idlerL.position.set(0, 0.08, -1.45);
+                group.add(idlerL);
+                const idlerR = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.12, 8), idlerMat);
+                idlerR.rotation.x = Math.PI / 2;
+                idlerR.position.set(0, 0.08, 1.45);
+                group.add(idlerR);
+
+                group.position.set(xOffset, 0, 0);
+                return group;
+            }
+            tank.add(createTrackStrip(-1.1));
+            tank.add(createTrackStrip(1.1));
+
+            // ---- БАШНЯ С КАМУФЛЯЖЕМ ----
+            const turretMat = new THREE.MeshStandardMaterial({
+                map: camoTexture,
+                roughness: 0.4,
+                metalness: 0.3
+            });
+            const turret = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.95, 0.6, 10), turretMat);
+            turret.position.y = 0.95;
+            turret.castShadow = true;
+            turret.receiveShadow = true;
+            tank.add(turret);
+
+            // Броневые экраны на башне (дополнительные листы)
+            const shieldMat = new THREE.MeshStandardMaterial({ color: 0x4a6a4a, roughness: 0.6 });
+            const shield1 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.2, 0.7), shieldMat);
+            shield1.position.set(0.85, 0.95, 0);
+            tank.add(shield1);
+            const shield2 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.2, 0.7), shieldMat);
+            shield2.position.set(-0.85, 0.95, 0);
+            tank.add(shield2);
+            const shield3 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.15, 0.05), shieldMat);
+            shield3.position.set(0, 0.95, 0.85);
+            tank.add(shield3);
+            const shield4 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.15, 0.05), shieldMat);
+            shield4.position.set(0, 0.95, -0.85);
+            tank.add(shield4);
+
+            // Командирская башенка
+            const cupolaMat = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.6, metalness: 0.2 });
+            const cupola = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, 0.2, 8), cupolaMat);
+            cupola.position.set(0.3, 1.25, 0.2);
+            cupola.castShadow = true;
+            tank.add(cupola);
+            const cupolaTop = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.1, 8), cupolaMat);
+            cupolaTop.position.set(0.3, 1.35, 0.2);
+            tank.add(cupolaTop);
+            // Перископы
+            const periscopeMat = new THREE.MeshStandardMaterial({ color: 0x88ccff, emissive: 0x4488ff, emissiveIntensity: 0.2 });
+            const periscope = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, 0.04), periscopeMat);
+            periscope.position.set(0.3, 1.38, 0.35);
+            tank.add(periscope);
+            const periscope2 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, 0.04), periscopeMat);
+            periscope2.position.set(-0.1, 1.38, 0.35);
+            tank.add(periscope2);
+
+            // Люк (круглый)
+            const hatchMat = new THREE.MeshStandardMaterial({ color: 0x884422, roughness: 0.8 });
+            const hatch = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.04, 10), hatchMat);
+            hatch.position.set(-0.25, 1.25, -0.2);
+            tank.add(hatch);
+            const hatchHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.1, 4), hatchMat);
+            hatchHandle.position.set(-0.25, 1.28, -0.2);
+            hatchHandle.rotation.x = Math.PI / 2;
+            tank.add(hatchHandle);
+
+            // ---- ПУШКА С БОЛЬШЕ ДЕТАЛЕЙ ----
+            const barrelMat = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.3, metalness: 0.7 });
+            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.4, 8), barrelMat);
+            barrel.rotation.x = Math.PI / 2;
+            barrel.position.set(0, 0.95, 1.2);
+            barrel.castShadow = true;
+            barrel.receiveShadow = true;
+            tank.add(barrel);
+
+            // Дульный тормоз (с прорезями)
+            const brakeMat = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.4, metalness: 0.6 });
+            const brake = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.18, 0.15, 8), brakeMat);
+            brake.rotation.x = Math.PI / 2;
+            brake.position.set(0, 0.95, 1.9);
+            brake.castShadow = true;
+            tank.add(brake);
+            // Прорези дульного тормоза (добавим 4 маленьких куба)
+            for (let i = 0; i < 4; i++) {
+                const slot = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.06, 0.04), new THREE
+                    .MeshStandardMaterial({ color: 0x333333 }));
+                const angle = (i / 4) * Math.PI * 2;
+                slot.position.set(Math.sin(angle) * 0.16, 0.95 + Math.cos(angle) * 0.06, 1.9);
+                slot.rotation.y = angle;
+                tank.add(slot);
+            }
+
+            // Основание пушки (утолщение)
+            const baseMat = new THREE.MeshStandardMaterial({ color: 0x777777, roughness: 0.5, metalness: 0.4 });
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.12, 0.2, 8), baseMat);
+            base.rotation.x = Math.PI / 2;
+            base.position.set(0, 0.95, 0.6);
+            tank.add(base);
+
+            // ---- ЯЩИКИ И ИНСТРУМЕНТЫ НА КОРМЕ ----
+            const boxMat = new THREE.MeshStandardMaterial({ color: 0x5a4a3a, roughness: 0.8 });
+            const box1 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 0.3), boxMat);
+            box1.position.set(-0.4, 0.8, -1.5);
+            box1.castShadow = true;
+            tank.add(box1);
+            const box2 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.15, 0.4), boxMat);
+            box2.position.set(0.5, 0.75, -1.5);
+            box2.castShadow = true;
+            tank.add(box2);
+            // Бочка
+            const barrelMat2 = new THREE.MeshStandardMaterial({ color: 0x6b4a3a, roughness: 0.7 });
+            const barrelObj = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.3, 8), barrelMat2);
+            barrelObj.position.set(0, 0.85, -1.5);
+            barrelObj.rotation.z = 0.2;
+            barrelObj.castShadow = true;
+            tank.add(barrelObj);
+
+            // Инструмент (лопата или домкрат)
+            const toolMat = new THREE.MeshStandardMaterial({ color: 0x8a7a6a, roughness: 0.6 });
+            const tool = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 0.5, 4), toolMat);
+            tool.position.set(-0.7, 0.7, -1.3);
+            tool.rotation.z = 0.3;
+            tool.rotation.x = 0.2;
+            tank.add(tool);
+            const toolHead = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.02, 0.12), toolMat);
+            toolHead.position.set(-0.7, 0.95, -1.3);
+            toolHead.rotation.z = 0.3;
+            toolHead.rotation.x = 0.2;
+            tank.add(toolHead);
+
+            // ---- ФАРЫ С ЗАЩИТНЫМИ РЕШЁТКАМИ ----
+            const lightMat = new THREE.MeshStandardMaterial({ color: 0xffdd99, emissive: 0xffaa44, emissiveIntensity: 0.3 });
+            const lightL = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8), lightMat);
+            lightL.position.set(-0.5, 0.45, 1.4);
+            tank.add(lightL);
+            const lightR = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8), lightMat);
+            lightR.position.set(0.5, 0.45, 1.4);
+            tank.add(lightR);
+            // Защитные решётки
+            const grilleMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.6, roughness: 0.3 });
+            const grilleL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.1, 0.02), grilleMat);
+            grilleL.position.set(-0.5, 0.45, 1.42);
+            tank.add(grilleL);
+            const grilleR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.1, 0.02), grilleMat);
+            grilleR.position.set(0.5, 0.45, 1.42);
+            tank.add(grilleR);
+
+            // ---- ТРОСЫ (БУКСИРОВОЧНЫЕ) ----
+            const cableMat = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.8 });
+            const cable1 = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.2, 4), cableMat);
+            cable1.position.set(-0.8, 0.2, -1.0);
+            cable1.rotation.z = 0.1;
+            cable1.rotation.x = 0.2;
+            tank.add(cable1);
+            const cable2 = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.2, 4), cableMat);
+            cable2.position.set(0.8, 0.2, -1.0);
+            cable2.rotation.z = -0.1;
+            cable2.rotation.x = 0.2;
+            tank.add(cable2);
+
+            // ---- АНТЕННА ----
+            const antennaMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.8, roughness: 0.2 });
+            const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.8, 4), antennaMat);
+            antenna.position.set(-0.4, 1.3, -1.2);
+            antenna.rotation.z = 0.1;
+            tank.add(antenna);
+
+            // ---- БРОНЯ НА КОРПУСЕ (дополнительные накладки) ----
+            const armorMat = new THREE.MeshStandardMaterial({ color: 0x3a5a3a, roughness: 0.7 });
+            const armor1 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.4), armorMat);
+            armor1.position.set(0.9, 0.6, 1.0);
+            tank.add(armor1);
+            const armor2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.4), armorMat);
+            armor2.position.set(-0.9, 0.6, 1.0);
+            tank.add(armor2);
+
+            tank.userData.isPlayer = isPlayer;
+            return tank;
+        }
+
+        // ============================================================
+        // 6. ИГРОК И ВРАГИ
+        // ============================================================
+        const playerTank = createRealisticTank(0x7cb342, playerCamo, true);
+        playerTank.position.set(0, 0, 0);
+        scene.add(playerTank);
+
+        function createEnemyTank() {
+            return createRealisticTank(0xbf3a3a, enemyCamo, false);
+        }
+
+        // ============================================================
+        // 7. КАМЕРА
+        // ============================================================
+        let cameraMode = 'first';
+        const modeLabel = document.getElementById('cameraMode');
+
+        let yaw = 0;
+        let pitch = 0;
+        const pitchLimit = Math.PI / 2.2;
+        const orbitRadius = 10;
+
+        function updateCamera() {
+            const pos = playerTank.position.clone();
+            if (cameraMode === 'first') {
+                pos.y += 1.5;
+                camera.position.copy(pos);
+                const euler = new THREE.Euler(pitch, yaw, 0, 'YXZ');
+                camera.quaternion.setFromEuler(euler);
+            } else {
+                const phi = Math.max(0.1, Math.min(Math.PI - 0.1, Math.PI / 2 - pitch + 0.3));
+                const theta = yaw;
+                const x = orbitRadius * Math.sin(phi) * Math.sin(theta);
+                const y = orbitRadius * Math.cos(phi) + 1.0;
+                const z = orbitRadius * Math.sin(phi) * Math.cos(theta);
+                const offset = new THREE.Vector3(x, y, z);
+                const targetPos = pos.clone().add(offset);
+                camera.position.copy(targetPos);
+                const lookTarget = pos.clone();
+                lookTarget.y += 1.0;
+                camera.lookAt(lookTarget);
+            }
+        }
+
+        // ============================================================
+        // 8. ИГРОВАЯ ЛОГИКА
+        // ============================================================
+        const game = {
+            score: 0,
+            lives: 3,
+            isOver: false,
+            enemies: [],
+            bullets: [],
+            enemySpawnInterval: 1.8,
+            enemySpawnTimer: 0,
+            playerSpeed: 8,
+            enemySpeed: 3.5,
+            bulletSpeed: 30,
+            maxEnemies: 30,
+        };
+
+        let explosionParticles = [];
+
+        const healthSpan = document.getElementById('health');
+        const scoreSpan = document.getElementById('score');
+        const enemyCountSpan = document.getElementById('enemyCount');
+        const finalScoreSpan = document.getElementById('finalScore');
+        const gameOverDiv = document.getElementById('gameOver');
+        const restartBtn = document.getElementById('restartBtn');
+        const clickToLock = document.getElementById('clickToLock');
+
+        function updateUI() {
+            healthSpan.textContent = game.lives;
+            scoreSpan.textContent = game.score;
+            enemyCountSpan.textContent = game.enemies.length;
+            modeLabel.textContent = cameraMode === 'first' ? '1-е лицо' : '3-е лицо';
+        }
+
+        // ============================================================
+        // 9. УПРАВЛЕНИЕ
+        // ============================================================
+        let isLocked = false;
+        clickToLock.addEventListener('click', () => renderer.domElement.requestPointerLock());
+        document.addEventListener('pointerlockchange', () => {
+            isLocked = document.pointerLockElement === renderer.domElement;
+            clickToLock.style.display = isLocked ? 'none' : 'block';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isLocked) return;
+            const sens = 0.002;
+            yaw -= e.movementX * sens;
+            pitch -= e.movementY * sens;
+            pitch = Math.max(-pitchLimit, Math.min(pitchLimit, pitch));
+            if (cameraMode === 'first') {
+                playerTank.rotation.y = yaw;
+            } else {
+                playerTank.rotation.y = yaw;
+            }
+            updateCamera();
+        });
+
+        const keys = { w: false, a: false, s: false, d: false };
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyW') keys.w = true;
+            if (e.code === 'KeyA') keys.a = true;
+            if (e.code === 'KeyS') keys.s = true;
+            if (e.code === 'KeyD') keys.d = true;
+            if (e.code === 'Space') { e.preventDefault(); if (!game.isOver && isLocked) shoot(); }
+            if (e.code === 'Digit1') {
+                e.preventDefault();
+                cameraMode = cameraMode === 'first' ? 'third' : 'first';
+                if (cameraMode === 'first') playerTank.rotation.y = yaw;
+                updateUI();
+                updateCamera();
+            }
+        });
+        document.addEventListener('keyup', (e) => {
+            if (e.code === 'KeyW') keys.w = false;
+            if (e.code === 'KeyA') keys.a = false;
+            if (e.code === 'KeyS') keys.s = false;
+            if (e.code === 'KeyD') keys.d = false;
+        });
+        document.addEventListener('mousedown', (e) => {
+            if (e.button === 0 && isLocked && !game.isOver) shoot();
+        });
+
+        // ============================================================
+        // 10. СТРЕЛЬБА
+        // ============================================================
+        function shoot() {
+            if (game.isOver) return;
+            const pos = playerTank.position.clone();
+            pos.y += 1.2;
+            const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            const startPos = pos.clone().add(dir.clone().multiplyScalar(1.5));
+            const bullet = new THREE.Mesh(
+                new THREE.SphereGeometry(0.2, 8),
+                new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0xff5500, emissiveIntensity: 0.8 })
+            );
+            bullet.position.copy(startPos);
+            bullet.castShadow = true;
+            bullet.userData.velocity = dir.clone().multiplyScalar(game.bulletSpeed);
+            bullet.userData.life = 4;
+            scene.add(bullet);
+            game.bullets.push(bullet);
+        }
+
+        // ============================================================
+        // 11. ВЗРЫВ
+        // ============================================================
+        function createExplosion(position, count = 50) {
+            const flashMat = new THREE.MeshStandardMaterial({
+                color: 0xffaa44,
+                emissive: 0xff8800,
+                emissiveIntensity: 2.0,
+                transparent: true,
+                opacity: 1.0
+            });
+            const flash = new THREE.Mesh(new THREE.SphereGeometry(0.8, 8, 8), flashMat);
+            flash.position.copy(position);
+            flash.position.y += 0.5;
+            flash.userData.life = 0.3;
+            flash.userData.isFlash = true;
+            scene.add(flash);
+            explosionParticles.push(flash);
+
+            const colors = [0xff5500, 0xffaa00, 0xffdd44, 0xff3333, 0xcc8800];
+            for (let i = 0; i < count; i++) {
+                const size = 0.05 + Math.random() * 0.2;
+                const mat = new THREE.MeshStandardMaterial({
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    emissive: 0xff4400,
+                    emissiveIntensity: 0.5,
+                    transparent: true,
+                    opacity: 1.0
+                });
+                let geometry;
+                if (Math.random() > 0.5) {
+                    geometry = new THREE.BoxGeometry(size, size, size);
+                } else {
+                    geometry = new THREE.SphereGeometry(size * 0.8, 4);
+                }
+                const particle = new THREE.Mesh(geometry, mat);
+                particle.position.copy(position);
+                particle.position.y += 0.3 + Math.random() * 0.5;
+                const dir = new THREE.Vector3(
+                    (Math.random() - 0.5) * 2,
+                    Math.random() * 0.8 + 0.2,
+                    (Math.random() - 0.5) * 2
+                ).normalize();
+                const speed = 3 + Math.random() * 5;
+                particle.userData.velocity = dir.multiplyScalar(speed);
+                particle.userData.life = 0.8 + Math.random() * 0.6;
+                particle.userData.rotationSpeed = new THREE.Vector3(
+                    (Math.random() - 0.5) * 10,
+                    (Math.random() - 0.5) * 10,
+                    (Math.random() - 0.5) * 10
+                );
+                particle.userData.isParticle = true;
+                particle.castShadow = true;
+                scene.add(particle);
+                explosionParticles.push(particle);
+            }
+
+            for (let i = 0; i < 8; i++) {
+                const smokeMat = new THREE.MeshStandardMaterial({
+                    color: 0x888888,
+                    transparent: true,
+                    opacity: 0.4,
+                    roughness: 0.9
+                });
+                const smoke = new THREE.Mesh(new THREE.SphereGeometry(0.3 + Math.random() * 0.5, 6), smokeMat);
+                smoke.position.copy(position);
+                smoke.position.y += 0.2 + Math.random() * 0.5;
+                smoke.userData.velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 1.5,
+                    1.0 + Math.random() * 1.5,
+                    (Math.random() - 0.5) * 1.5
+                );
+                smoke.userData.life = 1.5 + Math.random() * 1.0;
+                smoke.userData.isSmoke = true;
+                smoke.userData.scaleSpeed = 0.5 + Math.random() * 0.5;
+                scene.add(smoke);
+                explosionParticles.push(smoke);
+            }
+        }
+
+        // ============================================================
+        // 12. СПАВН ВРАГОВ
+        // ============================================================
+        function spawnEnemy() {
+            if (game.enemies.length >= game.maxEnemies || game.isOver) return;
+            const enemy = createEnemyTank();
+            const half = groundSize / 2 - 2;
+            let x, z;
+            const side = Math.floor(Math.random() * 4);
+            switch (side) {
+                case 0: x = (Math.random() - 0.5) * groundSize * 0.8; z = -half; break;
+                case 1: x = (Math.random() - 0.5) * groundSize * 0.8; z = half; break;
+                case 2: x = -half; z = (Math.random() - 0.5) * groundSize * 0.8; break;
+                case 3: x = half; z = (Math.random() - 0.5) * groundSize * 0.8; break;
+            }
+            enemy.position.set(x, 0, z);
+            enemy.rotation.y = Math.random() * Math.PI * 2;
+            scene.add(enemy);
+            game.enemies.push(enemy);
+        }
+
+        // ============================================================
+        // 13. ОБНОВЛЕНИЕ
+        // ============================================================
+        function updatePlayer(delta) {
+            if (game.isOver) return;
+            const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), playerTank.rotation.y);
+            const right = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), playerTank.rotation.y);
+            let moveVec = new THREE.Vector3(0, 0, 0);
+            if (keys.w) moveVec.add(forward);
+            if (keys.s) moveVec.sub(forward);
+            if (keys.a) moveVec.sub(right);
+            if (keys.d) moveVec.add(right);
+            if (moveVec.length() > 0.01) {
+                moveVec.normalize().multiplyScalar(game.playerSpeed * delta);
+                let newPos = playerTank.position.clone().add(moveVec);
+                const limit = groundSize / 2 - 1.2;
+                newPos.x = Math.max(-limit, Math.min(limit, newPos.x));
+                newPos.z = Math.max(-limit, Math.min(limit, newPos.z));
+                playerTank.position.copy(newPos);
+                updateCamera();
+            }
+        }
+
+        function updateBullets(delta) {
+            for (let i = game.bullets.length - 1; i >= 0; i--) {
+                const bullet = game.bullets[i];
+                bullet.position.add(bullet.userData.velocity.clone().multiplyScalar(delta));
+                bullet.userData.life -= delta;
+                let hit = false;
+                for (let j = game.enemies.length - 1; j >= 0; j--) {
+                    const enemy = game.enemies[j];
+                    if (bullet.position.distanceTo(enemy.position) < 1.5) {
+                        createExplosion(enemy.position.clone());
+                        scene.remove(enemy);
+                        game.enemies.splice(j, 1);
+                        game.score += 10;
+                        updateUI();
+                        hit = true;
+                        break;
+                    }
+                }
+                if (hit || bullet.userData.life <= 0 || bullet.position.length() > 80) {
+                    scene.remove(bullet);
+                    game.bullets.splice(i, 1);
+                }
+            }
+        }
+
+        function updateEnemies(delta) {
+            for (let i = game.enemies.length - 1; i >= 0; i--) {
+                const enemy = game.enemies[i];
+                const dir = new THREE.Vector3().copy(playerTank.position).sub(enemy.position);
+                dir.y = 0;
+                if (dir.length() > 0.5) {
+                    dir.normalize();
+                    enemy.position.add(dir.multiplyScalar(game.enemySpeed * delta));
+                    enemy.rotation.y = Math.atan2(dir.x, dir.z);
+                }
+                const limit = groundSize / 2 - 1;
+                enemy.position.x = Math.max(-limit, Math.min(limit, enemy.position.x));
+                enemy.position.z = Math.max(-limit, Math.min(limit, enemy.position.z));
+                if (enemy.position.distanceTo(playerTank.position) < 1.8) {
+                    createExplosion(enemy.position.clone());
+                    game.lives--;
+                    updateUI();
+                    scene.remove(enemy);
+                    game.enemies.splice(i, 1);
+                    if (game.lives <= 0) gameOver();
+                    continue;
+                }
+            }
+            game.enemySpawnTimer += delta;
+            if (game.enemySpawnTimer >= game.enemySpawnInterval) {
+                game.enemySpawnTimer = 0;
+                spawnEnemy();
+                if (game.score > 100) game.enemySpawnInterval = 1.2;
+                if (game.score > 300) game.enemySpawnInterval = 0.8;
+            }
+        }
+
+        function updateExplosions(delta) {
+            for (let i = explosionParticles.length - 1; i >= 0; i--) {
+                const p = explosionParticles[i];
+                p.userData.life -= delta;
+                if (p.userData.isFlash) {
+                    p.scale.setScalar(1 + (1 - p.userData.life / 0.3) * 3);
+                    p.material.opacity = Math.max(0, p.userData.life / 0.3);
+                    if (p.userData.life <= 0) {
+                        scene.remove(p);
+                        explosionParticles.splice(i, 1);
+                        continue;
+                    }
+                    continue;
+                }
+                if (p.userData.isParticle) {
+                    p.position.add(p.userData.velocity.clone().multiplyScalar(delta));
+                    p.userData.velocity.y -= 4.0 * delta;
+                    p.rotation.x += p.userData.rotationSpeed.x * delta;
+                    p.rotation.y += p.userData.rotationSpeed.y * delta;
+                    p.rotation.z += p.userData.rotationSpeed.z * delta;
+                    const lifeRatio = Math.max(0, p.userData.life / 1.2);
+                    p.material.opacity = lifeRatio;
+                    p.scale.setScalar(0.5 + lifeRatio * 0.5);
+                    if (p.userData.life <= 0 || p.position.y < -1) {
+                        scene.remove(p);
+                        explosionParticles.splice(i, 1);
+                        continue;
+                    }
+                }
+                if (p.userData.isSmoke) {
+                    p.position.add(p.userData.velocity.clone().multiplyScalar(delta));
+                    p.userData.velocity.y += 0.5 * delta;
+                    const lifeRatio = Math.max(0, p.userData.life / 2.0);
+                    p.material.opacity = 0.4 * lifeRatio;
+                    const scale = 1 + (1 - lifeRatio) * 2;
+                    p.scale.setScalar(scale);
+                    if (p.userData.life <= 0 || p.position.y > 8) {
+                        scene.remove(p);
+                        explosionParticles.splice(i, 1);
+                        continue;
+                    }
+                }
+            }
+        }
+
+        function gameOver() {
+            game.isOver = true;
+            finalScoreSpan.textContent = game.score;
+            gameOverDiv.style.display = 'block';
+            if (document.pointerLockElement) document.exitPointerLock();
+        }
+
+        function restartGame() {
+            game.enemies.forEach(e => scene.remove(e));
+            game.bullets.forEach(b => scene.remove(b));
+            explosionParticles.forEach(p => scene.remove(p));
+            game.enemies = [];
+            game.bullets = [];
+            explosionParticles = [];
+            game.score = 0;
+            game.lives = 3;
+            game.isOver = false;
+            game.enemySpawnTimer = 0;
+            game.enemySpawnInterval = 1.8;
+            playerTank.position.set(0, 0, 0);
+            yaw = 0;
+            pitch = 0;
+            playerTank.rotation.y = 0;
+            updateCamera();
+            gameOverDiv.style.display = 'none';
+            updateUI();
+        }
+        restartBtn.addEventListener('click', restartGame);
+
+        // ============================================================
+        // 14. ЦИКЛ
+        // ============================================================
+        const clock = new THREE.Clock();
+
+        function animate() {
+            const delta = Math.min(clock.getDelta(), 0.05);
+            if (!game.isOver) {
+                updatePlayer(delta);
+                updateBullets(delta);
+                updateEnemies(delta);
+                updateExplosions(delta);
+                updateUI();
+            } else {
+                updateExplosions(delta);
+            }
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+
+        // ============================================================
+        // 15. ЗАПУСК
+        // ============================================================
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        updateUI();
+        updateCamera();
+        setTimeout(() => { spawnEnemy(); spawnEnemy(); spawnEnemy(); }, 500);
+        animate();
+
+        console.log('Супер-реалистичные танки с камуфляжем и деталями!');
+    </script>
+</body>
+</html>
