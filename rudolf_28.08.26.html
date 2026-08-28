@@ -1,0 +1,2281 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Песочница - Подсветка объектов</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+        }
+        
+        #gameCanvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            cursor: default;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        
+        #gameCanvas.grabbing {
+            cursor: grabbing !important;
+        }
+        
+        #gameCanvas.grab-hover {
+            cursor: grab !important;
+        }
+        
+        /* ============ ГЛАВНОЕ МЕНЮ ============ */
+        .main-menu {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(20px);
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.4s ease;
+        }
+        
+        .main-menu.hidden {
+            display: none;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .menu-content {
+            background: rgba(255, 255, 255, 0.97);
+            border-radius: 24px;
+            padding: 40px;
+            max-width: 900px;
+            width: 92%;
+            max-height: 88vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 80px rgba(0, 0, 0, 0.6);
+            position: relative;
+            animation: slideIn 0.3s ease;
+        }
+        
+        .menu-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        
+        .menu-header h2 {
+            font-size: 28px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .menu-header h2 span {
+            font-size: 32px;
+        }
+        
+        .menu-header-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .menu-close {
+            background: #f0f0f0;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+        }
+        
+        .menu-close:hover {
+            background: #dc3545;
+            color: white;
+            transform: rotate(90deg);
+        }
+        
+        .btn-exit-menu {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-exit-menu:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(220, 53, 69, 0.4);
+        }
+        
+        /* ============ ВЫДАЧА ПРЕДМЕТОВ ============ */
+        .reward-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 16px;
+            padding: 20px 24px;
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        
+        .reward-section .title {
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .reward-section .title span {
+            font-size: 24px;
+        }
+        
+        .reward-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .reward-controls input {
+            padding: 8px 14px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            min-width: 140px;
+            background: rgba(255, 255, 255, 0.95);
+        }
+        
+        .reward-controls input:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
+        }
+        
+        .btn-reward {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-reward:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+        }
+        
+        .btn-reward-random {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            padding: 8px 20px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-reward-random:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+        
+        /* Статистика */
+        .menu-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+            background: #f8f9fa;
+            padding: 16px;
+            border-radius: 12px;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-item .number {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+        }
+        
+        .stat-item .label {
+            font-size: 12px;
+            color: #888;
+            margin-top: 4px;
+        }
+        
+        /* Список предметов */
+        .items-grid-menu {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+        }
+        
+        .item-card {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 16px;
+            transition: all 0.3s;
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .item-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+            border-color: #667eea;
+        }
+        
+        .item-card.in-inventory {
+            border-color: #28a745;
+            background: #f0fff4;
+        }
+        
+        .item-card.in-room {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        
+        .item-card.in-hand {
+            border-color: #e83e8c;
+            background: #fff0f6;
+        }
+        
+        .item-card .item-emoji {
+            font-size: 32px;
+            display: block;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+        
+        .item-card .item-name {
+            font-weight: 600;
+            font-size: 16px;
+            color: #333;
+            text-align: center;
+        }
+        
+        .item-card .item-props {
+            font-size: 12px;
+            color: #888;
+            text-align: center;
+            margin-top: 4px;
+        }
+        
+        .item-card .item-status {
+            font-size: 11px;
+            text-align: center;
+            margin-top: 8px;
+            padding: 4px 12px;
+            border-radius: 12px;
+            display: inline-block;
+            width: 100%;
+        }
+        
+        .item-card .status-hand {
+            background: #e83e8c;
+            color: white;
+        }
+        
+        .item-card .status-inventory {
+            background: #28a745;
+            color: white;
+        }
+        
+        .item-card .status-room {
+            background: #667eea;
+            color: white;
+        }
+        
+        .item-card .status-none {
+            background: #e0e0e0;
+            color: #666;
+        }
+        
+        .item-card .item-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .item-card .item-actions button {
+            padding: 4px 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: white;
+        }
+        
+        .item-card .item-actions button:hover {
+            transform: scale(1.05);
+        }
+        
+        .btn-take { background: #667eea; }
+        .btn-drop { background: #28a745; }
+        .btn-examine { background: #17a2b8; }
+        .btn-delete { background: #dc3545; }
+        .btn-grab { background: #e83e8c; }
+        
+        /* Кнопка открытия меню */
+        .menu-toggle {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 50;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            padding: 12px 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .menu-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        .menu-toggle .badge {
+            background: #dc3545;
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        
+        /* ============ ОСТАЛЬНЫЕ UI ЭЛЕМЕНТЫ ============ */
+        .ui-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 16px 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            max-width: 90vw;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .ui-panel input {
+            padding: 10px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+            min-width: 150px;
+            background: white;
+            transition: all 0.3s;
+        }
+        
+        .ui-panel input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+        }
+        
+        .btn {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: white;
+            white-space: nowrap;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn-primary { background: #667eea; }
+        .btn-success { background: #28a745; }
+        .btn-warning { background: #ffc107; color: #333; }
+        .btn-danger { background: #dc3545; }
+        .btn-info { background: #17a2b8; }
+        .btn-secondary { background: #6c757d; }
+        .btn-pink { background: #e83e8c; }
+        
+        .inventory-panel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            z-index: 100;
+            min-width: 180px;
+            max-height: 50vh;
+            overflow-y: auto;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .inventory-panel h3 {
+            color: #333;
+            font-size: 14px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 8px;
+        }
+        
+        .inventory-item {
+            background: #f8f9fa;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #333;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+            cursor: default;
+        }
+        
+        .inventory-item:hover {
+            background: #e9ecef;
+            transform: translateX(4px);
+        }
+        
+        .item-tag {
+            font-size: 11px;
+            color: #888;
+        }
+        
+        .log-panel {
+            position: fixed;
+            bottom: 100px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 12px 16px;
+            z-index: 100;
+            max-width: 300px;
+            max-height: 150px;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .log-entry {
+            color: #e0e0e0;
+            font-size: 12px;
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+        
+        .controls-hint {
+            position: fixed;
+            top: 80px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 12px 16px;
+            z-index: 50;
+            color: #e0e0e0;
+            font-size: 12px;
+            line-height: 1.8;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .controls-hint kbd {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+        
+        .controls-hint .key-highlight {
+            background: rgba(255, 215, 0, 0.2);
+            border: 1px solid rgba(255, 215, 0, 0.3);
+            padding: 2px 10px;
+            border-radius: 6px;
+            color: #ffd700;
+            font-weight: 700;
+        }
+        
+        .controls-hint .grab-hint {
+            color: #ff6b9d;
+            font-weight: 600;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 2px;
+        }
+        
+        /* Уведомление о выдаче */
+        .reward-notification {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(20px);
+            padding: 40px 60px;
+            border-radius: 24px;
+            z-index: 2000;
+            text-align: center;
+            animation: rewardPop 0.6s ease;
+            border: 2px solid rgba(255, 215, 0, 0.3);
+        }
+        
+        .reward-notification.hidden {
+            display: none;
+        }
+        
+        @keyframes rewardPop {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+            60% { transform: translate(-50%, -50%) scale(1.1); }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        
+        .reward-notification .emoji {
+            font-size: 64px;
+            display: block;
+            margin-bottom: 12px;
+        }
+        
+        .reward-notification .title {
+            color: #ffd700;
+            font-size: 24px;
+            font-weight: 700;
+        }
+        
+        .reward-notification .subtitle {
+            color: #e0e0e0;
+            font-size: 16px;
+            margin-top: 8px;
+        }
+        
+        /* Подсказка о спавне */
+        .spawn-hint {
+            position: fixed;
+            bottom: 90px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            padding: 8px 20px;
+            border-radius: 20px;
+            z-index: 50;
+            color: #ffd700;
+            font-size: 14px;
+            font-weight: 600;
+            border: 1px solid rgba(255, 215, 0, 0.2);
+            animation: pulse 2s ease-in-out infinite;
+            pointer-events: none;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 0.7; transform: translateX(-50%) scale(1); }
+            50% { opacity: 1; transform: translateX(-50%) scale(1.05); }
+        }
+        
+        @media (max-width: 768px) {
+            .menu-content {
+                padding: 20px;
+                max-height: 90vh;
+            }
+            
+            .menu-header h2 {
+                font-size: 20px;
+            }
+            
+            .items-grid-menu {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            }
+            
+            .ui-panel {
+                bottom: 10px;
+                padding: 12px 16px;
+                gap: 8px;
+            }
+            
+            .ui-panel input {
+                min-width: 100px;
+                font-size: 12px;
+                padding: 8px 12px;
+            }
+            
+            .btn {
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+            
+            .inventory-panel {
+                right: 10px;
+                top: 10px;
+                min-width: 130px;
+                padding: 12px;
+            }
+            
+            .log-panel {
+                left: 10px;
+                bottom: 80px;
+                max-width: 200px;
+                max-height: 100px;
+                padding: 8px 12px;
+            }
+            
+            .controls-hint {
+                display: none;
+            }
+            
+            .menu-toggle {
+                top: 10px;
+                left: 10px;
+                padding: 8px 14px;
+                font-size: 14px;
+            }
+            
+            .menu-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .reward-section {
+                flex-direction: column;
+                align-items: stretch;
+                text-align: center;
+            }
+            
+            .reward-controls {
+                justify-content: center;
+            }
+            
+            .menu-header-actions {
+                width: 100%;
+                justify-content: flex-end;
+            }
+            
+            .spawn-hint {
+                bottom: 80px;
+                font-size: 12px;
+                padding: 6px 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameCanvas"></div>
+    
+    <!-- Уведомление о выдаче -->
+    <div class="reward-notification hidden" id="rewardNotification">
+        <span class="emoji" id="rewardEmoji">🎁</span>
+        <div class="title" id="rewardTitle">Предмет получен!</div>
+        <div class="subtitle" id="rewardSubtitle">Кубик добавлен в инвентарь</div>
+    </div>
+    
+    <!-- Кнопка открытия меню -->
+    <button class="menu-toggle" id="menuToggle" onclick="toggleMenu()">
+        📋 Меню предметов
+        <span class="badge" id="totalBadge">0</span>
+    </button>
+    
+    <!-- Подсказка о спавне -->
+    <div class="spawn-hint">
+        ⚡ Нажми <kbd style="background:rgba(255,215,0,0.2);padding:2px 10px;border-radius:4px;color:#ffd700;font-weight:700;">U</kbd> чтобы создать предмет!
+    </div>
+    
+    <!-- Главное меню -->
+    <div class="main-menu hidden" id="mainMenu">
+        <div class="menu-content">
+            <div class="menu-header">
+                <h2>
+                    <span>📦</span> Все предметы
+                </h2>
+                <div class="menu-header-actions">
+                    <button class="btn-exit-menu" onclick="exitGame()">
+                        🚪 Выйти
+                    </button>
+                    <button class="menu-close" onclick="toggleMenu()">✕</button>
+                </div>
+            </div>
+            
+            <!-- Блок выдачи предметов -->
+            <div class="reward-section">
+                <div class="title">
+                    <span>🎁</span> Выдача предметов
+                </div>
+                <div class="reward-controls">
+                    <input type="text" id="rewardInput" placeholder="Название предмета...">
+                    <button class="btn-reward" onclick="giveItem()">📥 Выдать</button>
+                    <button class="btn-reward-random" onclick="giveRandomItem()">🎲 Случайный</button>
+                </div>
+            </div>
+            
+            <div class="menu-stats" id="menuStats">
+                <div class="stat-item">
+                    <div class="number" id="totalItems">0</div>
+                    <div class="label">Всего предметов</div>
+                </div>
+                <div class="stat-item">
+                    <div class="number" id="inventoryCount">0</div>
+                    <div class="label">В инвентаре</div>
+                </div>
+                <div class="stat-item">
+                    <div class="number" id="roomCount">0</div>
+                    <div class="label">В комнате</div>
+                </div>
+                <div class="stat-item">
+                    <div class="number" id="grabbedCount">0</div>
+                    <div class="label">В руках</div>
+                </div>
+            </div>
+            
+            <div id="itemsGrid" class="items-grid-menu">
+                <!-- Предметы будут добавлены через JS -->
+            </div>
+        </div>
+    </div>
+    
+    <div class="controls-hint">
+        <span class="grab-hint">🖱️ Drag & Drop с подсветкой:</span><br>
+        🖱️ <kbd>Наведи</kbd> на предмет - <strong>подсветка контуром</strong><br>
+        🖱️ <kbd>Зажать ЛКМ</kbd> - схватить и тащить<br>
+        🖱️ <kbd>Отпустить ЛКМ</kbd> - предмет падает с физикой<br>
+        📋 <kbd>M</kbd> - открыть меню<br>
+        ⚡ <kbd class="key-highlight">U</kbd> - спавн предмета<br>
+        💥 <kbd>Пробел</kbd> - подбросить предмет<br>
+        🔄 <kbd>ПКМ</kbd> - вращать камеру
+    </div>
+    
+    <div class="inventory-panel" id="inventoryPanel">
+        <h3>🎒 Инвентарь</h3>
+        <div id="inventoryList">
+            <div style="color: #999; font-size: 13px; text-align: center; padding: 10px 0;">
+                Пусто
+            </div>
+        </div>
+    </div>
+    
+    <div class="log-panel" id="logPanel">
+        <div class="log-entry">🎮 3D песочница с подсветкой объектов!</div>
+        <div class="log-entry">✨ Наведи курсор на предмет - увидишь контур!</div>
+    </div>
+    
+    <div class="ui-panel">
+        <input type="text" id="commandInput" placeholder="Название предмета...">
+        <button class="btn btn-primary" onclick="executeCommand('взять')">📥 Взять</button>
+        <button class="btn btn-success" onclick="executeCommand('положить')">📤 Положить</button>
+        <button class="btn btn-info" onclick="executeCommand('изучить')">🔍 Изучить</button>
+        <button class="btn btn-warning" onclick="executeCommand('создать')">✨ Создать</button>
+        <button class="btn btn-danger" onclick="executeCommand('стереть')">💥 Стереть</button>
+        <button class="btn btn-pink" onclick="executeCommand('бросить')">✋ Бросить</button>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+        import * as CANNON from 'cannon-es';
+        
+        // ============ ИГРОВАЯ ЛОГИКА ============
+        
+        let inventory = [];
+        let grabbedItem = null;
+        let isDragging = false;
+        let dragStartPosition = new THREE.Vector3();
+        let hoveredItem = null;
+        
+        const itemProperties = {
+            "кубик": { color: 0xff4444, size: 0.8, emoji: "🧊", weight: 200, material: "дерево", shape: "box" },
+            "мяч": { color: 0x4488ff, size: 0.7, emoji: "⚽", weight: 100, material: "резина", shape: "sphere" },
+            "коробка": { color: 0xffaa44, size: 0.9, emoji: "📦", weight: 50, material: "картон", shape: "box" },
+            "зеркало": { color: 0x88ccff, size: 0.6, emoji: "🪞", weight: 500, material: "стекло", shape: "cylinder" },
+            "карандаш": { color: 0xffdd00, size: 0.5, emoji: "✏️", weight: 10, material: "дерево", shape: "cylinder" }
+        };
+        
+        const colors = ["красный", "синий", "зеленый", "желтый", "фиолетовый", "оранжевый", "черный", "белый"];
+        const materials = ["дерево", "металл", "пластик", "стекло", "резина", "камень"];
+        const emojis = ["⭐", "🌟", "💎", "🔮", "🎨", "🧸", "🎪", "🌈", "🦄", "🍀"];
+        const itemNames = ["меч", "щит", "зелье", "книга", "фонарь", "ключ", "карта", "компас", "лупа", "камень"];
+        const shapes = ['box', 'sphere', 'cylinder', 'cone'];
+        
+        // ============ THREE.JS НАСТРОЙКИ ============
+        
+        const container = document.getElementById('gameCanvas');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xf0f0f0);
+        
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(6, 4, 8);
+        camera.lookAt(0, 0, 0);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        container.appendChild(renderer.domElement);
+        
+        const labelRenderer = new CSS2DRenderer();
+        labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        labelRenderer.domElement.style.position = 'absolute';
+        labelRenderer.domElement.style.top = '0';
+        labelRenderer.domElement.style.left = '0';
+        labelRenderer.domElement.style.pointerEvents = 'none';
+        container.appendChild(labelRenderer.domElement);
+        
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.08;
+        controls.minDistance = 3;
+        controls.maxDistance = 15;
+        controls.maxPolarAngle = Math.PI / 2.1;
+        controls.target.set(0, 0.5, 0);
+        controls.enablePan = false;
+        
+        // ============ ЭФФЕКТ ПОДСВЕТКИ ============
+        
+        // Создаем материалы для подсветки
+        function createOutlineMaterial() {
+            return new THREE.MeshBasicMaterial({
+                color: 0x00ff88,
+                transparent: true,
+                opacity: 0.7,
+                side: THREE.BackSide
+            });
+        }
+        
+        // Функция создания контура для любого меша
+        function createOutlineForMesh(mesh) {
+            if (!mesh) return null;
+            
+            // Создаем увеличенную копию геометрии
+            let outlineGeometry;
+            const scale = 1.12;
+            
+            // Для стандартных геометрий используем параметры
+            if (mesh.geometry.type === 'BoxGeometry') {
+                const p = mesh.geometry.parameters;
+                outlineGeometry = new THREE.BoxGeometry(
+                    p.width * scale,
+                    p.height * scale,
+                    p.depth * scale
+                );
+            } else if (mesh.geometry.type === 'SphereGeometry') {
+                const p = mesh.geometry.parameters;
+                outlineGeometry = new THREE.SphereGeometry(p.radius * scale, 32, 32);
+            } else if (mesh.geometry.type === 'CylinderGeometry') {
+                const p = mesh.geometry.parameters;
+                outlineGeometry = new THREE.CylinderGeometry(
+                    p.radiusTop * scale,
+                    p.radiusBottom * scale,
+                    p.height * scale,
+                    p.radialSegments || 16
+                );
+            } else if (mesh.geometry.type === 'ConeGeometry') {
+                const p = mesh.geometry.parameters;
+                outlineGeometry = new THREE.ConeGeometry(
+                    p.radius * scale,
+                    p.height * scale,
+                    p.radialSegments || 16
+                );
+            } else {
+                // Для кастомных геометрий - клонируем и масштабируем
+                outlineGeometry = mesh.geometry.clone();
+                const pos = outlineGeometry.attributes.position;
+                if (pos) {
+                    for (let i = 0; i < pos.count; i++) {
+                        pos.setXYZ(i,
+                            pos.getX(i) * scale,
+                            pos.getY(i) * scale,
+                            pos.getZ(i) * scale
+                        );
+                    }
+                    pos.needsUpdate = true;
+                }
+            }
+            
+            const outline = new THREE.Mesh(outlineGeometry, createOutlineMaterial());
+            outline.position.copy(mesh.position);
+            outline.rotation.copy(mesh.rotation);
+            outline.scale.copy(mesh.scale);
+            outline.visible = false;
+            outline.userData.isOutline = true;
+            
+            return outline;
+        }
+        
+        // Обновляем все контуры
+        function updateAllOutlines() {
+            itemMeshes.forEach((data, name) => {
+                if (outlineMeshes.has(name)) {
+                    const outline = outlineMeshes.get(name);
+                    const mesh = data.mesh;
+                    outline.position.copy(mesh.position);
+                    outline.rotation.copy(mesh.rotation);
+                    outline.scale.copy(mesh.scale);
+                }
+            });
+        }
+        
+        const outlineMeshes = new Map();
+        
+        // ============ CANNON.JS ФИЗИКА ============
+        
+        const world = new CANNON.World();
+        world.gravity.set(0, -9.82, 0);
+        world.broadphase = new CANNON.SAPBroadphase(world);
+        world.defaultContactMaterial.restitution = 0.3;
+        world.defaultContactMaterial.friction = 0.5;
+        
+        const groundMaterial = new CANNON.Material('ground');
+        const itemMaterial = new CANNON.Material('item');
+        const contactMaterial = new CANNON.ContactMaterial(groundMaterial, itemMaterial, {
+            friction: 0.5,
+            restitution: 0.4
+        });
+        world.addContactMaterial(contactMaterial);
+        
+        const itemContactMaterial = new CANNON.ContactMaterial(itemMaterial, itemMaterial, {
+            friction: 0.3,
+            restitution: 0.2
+        });
+        world.addContactMaterial(itemContactMaterial);
+        
+        const groundShape = new CANNON.Plane();
+        const groundBody = new CANNON.Body({ mass: 0, material: groundMaterial });
+        groundBody.addShape(groundShape);
+        groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+        world.addBody(groundBody);
+        
+        function addWallPhysics(x, y, z, width, height, rotY = 0) {
+            const shape = new CANNON.Box(new CANNON.Vec3(width/2, height/2, 0.05));
+            const body = new CANNON.Body({ mass: 0 });
+            body.addShape(shape);
+            body.position.set(x, y, z);
+            body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), rotY);
+            world.addBody(body);
+        }
+        
+        addWallPhysics(0, 2, -4, 8, 4);
+        addWallPhysics(0, 2, 4, 8, 4);
+        addWallPhysics(-4, 2, 0, 4, 4, Math.PI / 2);
+        addWallPhysics(4, 2, 0, 4, 4, Math.PI / 2);
+        
+        // ============ ОСВЕЩЕНИЕ ============
+        
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        
+        const mainLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        mainLight.position.set(5, 8, 5);
+        mainLight.castShadow = true;
+        mainLight.shadow.mapSize.width = 2048;
+        mainLight.shadow.mapSize.height = 2048;
+        mainLight.shadow.camera.near = 0.5;
+        mainLight.shadow.camera.far = 20;
+        mainLight.shadow.camera.left = -8;
+        mainLight.shadow.camera.right = 8;
+        mainLight.shadow.camera.top = 8;
+        mainLight.shadow.camera.bottom = -8;
+        scene.add(mainLight);
+        
+        const fillLight = new THREE.DirectionalLight(0x8888ff, 0.3);
+        fillLight.position.set(-3, 4, -3);
+        scene.add(fillLight);
+        
+        const rimLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        rimLight.position.set(-2, 1, -5);
+        scene.add(rimLight);
+        
+        // ============ КОМНАТА ============
+        
+        const floorGeometry = new THREE.PlaneGeometry(8, 8);
+        const floorMaterial = new THREE.MeshStandardMaterial({
+            color: 0xf5f5f5,
+            roughness: 0.8,
+            metalness: 0.1
+        });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -0.01;
+        floor.receiveShadow = true;
+        floor.name = 'floor';
+        scene.add(floor);
+        
+        const gridHelper = new THREE.GridHelper(8, 20, 0xcccccc, 0xe0e0e0);
+        gridHelper.position.y = 0.001;
+        scene.add(gridHelper);
+        
+        function createWallMesh(width, height, x, y, z, rotY = 0) {
+            const geometry = new THREE.BoxGeometry(width, height, 0.1);
+            const material = new THREE.MeshStandardMaterial({
+                color: 0xffffff,
+                roughness: 0.7,
+                metalness: 0.05,
+                transparent: true,
+                opacity: 0.3
+            });
+            const wall = new THREE.Mesh(geometry, material);
+            wall.position.set(x, y, z);
+            wall.rotation.y = rotY;
+            wall.receiveShadow = true;
+            scene.add(wall);
+            return wall;
+        }
+        
+        createWallMesh(8, 4, 0, 2, -4);
+        createWallMesh(8, 4, 0, 2, 4);
+        createWallMesh(4, 4, -4, 2, 0, Math.PI / 2);
+        createWallMesh(4, 4, 4, 2, 0, Math.PI / 2);
+        
+        const ceilingMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            roughness: 0.5,
+            metalness: 0.1,
+            transparent: true,
+            opacity: 0.15
+        });
+        const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(8, 8), ceilingMaterial);
+        ceiling.rotation.x = Math.PI / 2;
+        ceiling.position.y = 4;
+        scene.add(ceiling);
+        
+        // ============ УПРАВЛЕНИЕ ПРЕДМЕТАМИ ============
+        
+        const itemMeshes = new Map();
+        const itemBodies = new Map();
+        const itemData = new Map();
+        
+        function createPhysicsBody(itemName, position, shapeType = 'box') {
+            const props = itemProperties[itemName];
+            if (!props) return null;
+            
+            const size = props.size || 0.7;
+            let shape;
+            
+            switch(shapeType) {
+                case 'sphere':
+                    shape = new CANNON.Sphere(size * 0.5);
+                    break;
+                case 'cylinder':
+                    shape = new CANNON.Cylinder(size * 0.4, size * 0.4, size * 0.8, 8);
+                    break;
+                case 'cone':
+                    shape = new CANNON.Cylinder(size * 0.2, size * 0.6, size * 0.9, 8);
+                    break;
+                default:
+                    shape = new CANNON.Box(new CANNON.Vec3(size * 0.4, size * 0.4, size * 0.4));
+            }
+            
+            const mass = props.weight / 1000 + 0.1;
+            const body = new CANNON.Body({ mass, material: itemMaterial });
+            body.addShape(shape);
+            body.position.set(position.x, position.y + 0.5, position.z);
+            body.sleepSpeedLimit = 0.1;
+            
+            body.quaternion.setFromAxisAngle(
+                new CANNON.Vec3(Math.random(), Math.random(), Math.random()).unit(),
+                Math.random() * Math.PI * 2
+            );
+            
+            world.addBody(body);
+            return body;
+        }
+        
+        function createItem3D(itemName, position) {
+            // Удаляем старый
+            if (itemMeshes.has(itemName)) {
+                const old = itemMeshes.get(itemName);
+                scene.remove(old.mesh);
+                scene.remove(old.label);
+                itemMeshes.delete(itemName);
+            }
+            if (outlineMeshes.has(itemName)) {
+                scene.remove(outlineMeshes.get(itemName));
+                outlineMeshes.delete(itemName);
+            }
+            if (itemBodies.has(itemName)) {
+                world.removeBody(itemBodies.get(itemName));
+                itemBodies.delete(itemName);
+            }
+            
+            const props = itemProperties[itemName];
+            if (!props) return null;
+            
+            let geometry, material, mesh;
+            const color = props.color;
+            const size = props.size || 0.7;
+            const shapeType = props.shape || 'box';
+            
+            switch(shapeType) {
+                case 'sphere':
+                    geometry = new THREE.SphereGeometry(size * 0.5, 32, 32);
+                    material = new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.1 });
+                    mesh = new THREE.Mesh(geometry, material);
+                    break;
+                case 'cylinder':
+                    geometry = new THREE.CylinderGeometry(size * 0.4, size * 0.4, size * 0.8, 16);
+                    material = new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.2 });
+                    mesh = new THREE.Mesh(geometry, material);
+                    break;
+                case 'cone':
+                    geometry = new THREE.ConeGeometry(size * 0.4, size * 0.9, 16);
+                    material = new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.2 });
+                    mesh = new THREE.Mesh(geometry, material);
+                    break;
+                default:
+                    geometry = new THREE.BoxGeometry(size * 0.8, size * 0.8, size * 0.8);
+                    material = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.3 });
+                    mesh = new THREE.Mesh(geometry, material);
+            }
+            
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.position.copy(position);
+            mesh.position.y += 0.5;
+            mesh.userData.itemName = itemName;
+            
+            scene.add(mesh);
+            
+            // Создаем контур
+            const outline = createOutlineForMesh(mesh);
+            if (outline) {
+                scene.add(outline);
+                outlineMeshes.set(itemName, outline);
+            }
+            
+            // Физика
+            const body = createPhysicsBody(itemName, position, shapeType);
+            if (body) {
+                itemBodies.set(itemName, body);
+                body.userData = { mesh };
+            }
+            
+            // Лейбл
+            const labelDiv = document.createElement('div');
+            labelDiv.textContent = `${props.emoji} ${itemName}`;
+            labelDiv.style.color = '#333';
+            labelDiv.style.fontSize = '12px';
+            labelDiv.style.fontWeight = '600';
+            labelDiv.style.background = 'rgba(255,255,255,0.9)';
+            labelDiv.style.padding = '2px 10px';
+            labelDiv.style.borderRadius = '12px';
+            labelDiv.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+            labelDiv.style.backdropFilter = 'blur(4px)';
+            labelDiv.style.pointerEvents = 'none';
+            
+            const label = new CSS2DObject(labelDiv);
+            label.position.copy(position);
+            label.position.y += 0.5 + 0.6;
+            scene.add(label);
+            
+            itemMeshes.set(itemName, { mesh, label, data: props });
+            itemData.set(itemName, { mesh, label, body });
+            
+            return mesh;
+        }
+        
+        // Создаем начальные предметы
+        const startPositions = [
+            new THREE.Vector3(-1.5, 0.3, -1),
+            new THREE.Vector3(1.5, 0.5, -0.5),
+            new THREE.Vector3(-1, 0.4, 1.5),
+            new THREE.Vector3(1.2, 0.6, 1.2),
+            new THREE.Vector3(0, 0.3, -2)
+        ];
+        
+        const roomItems = ["кубик", "мяч", "коробка", "зеркало", "карандаш"];
+        roomItems.forEach((item, i) => {
+            createItem3D(item, startPositions[i % startPositions.length]);
+        });
+        
+        // ============ ФУНКЦИИ ИГРЫ ============
+        
+        function addLog(message) {
+            const logPanel = document.getElementById('logPanel');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = message;
+            logPanel.appendChild(entry);
+            logPanel.scrollTop = logPanel.scrollHeight;
+            
+            while (logPanel.children.length > 30) {
+                logPanel.removeChild(logPanel.firstChild);
+            }
+        }
+        
+        function updateInventoryUI() {
+            const list = document.getElementById('inventoryList');
+            if (inventory.length === 0) {
+                list.innerHTML = '<div style="color: #999; font-size: 13px; text-align: center; padding: 10px 0;">Пусто</div>';
+                return;
+            }
+            
+            list.innerHTML = inventory.map(item => {
+                const props = itemProperties[item];
+                const emoji = props ? props.emoji : '📦';
+                return `<div class="inventory-item">
+                    <span>${emoji} ${item}</span>
+                    <span class="item-tag">${props ? props.weight + 'г' : '?'}</span>
+                </div>`;
+            }).join('');
+            
+            updateMenuStats();
+        }
+        
+        function getRoomItems() {
+            const allItems = Object.keys(itemProperties);
+            return allItems.filter(item => !inventory.includes(item));
+        }
+        
+        function findFreePosition() {
+            const usedPositions = [];
+            itemBodies.forEach((body) => {
+                if (body) {
+                    usedPositions.push(new THREE.Vector3(body.position.x, 0, body.position.z));
+                }
+            });
+            
+            let attempts = 0;
+            while (attempts < 50) {
+                const x = (Math.random() - 0.5) * 5;
+                const z = (Math.random() - 0.5) * 5;
+                const pos = new THREE.Vector3(x, 0, z);
+                
+                let tooClose = false;
+                for (const used of usedPositions) {
+                    if (pos.distanceTo(used) < 1.2) {
+                        tooClose = true;
+                        break;
+                    }
+                }
+                if (!tooClose && Math.abs(x) < 3.5 && Math.abs(z) < 3.5) {
+                    pos.y = 0.3 + Math.random() * 0.5;
+                    return pos;
+                }
+                attempts++;
+            }
+            return new THREE.Vector3(0, 0.3, 0);
+        }
+        
+        function refreshRoomItems() {
+            const toRemove = [];
+            itemMeshes.forEach((value, key) => {
+                if (!inventory.includes(key) && key !== grabbedItem) {
+                    if (!getRoomItems().includes(key)) {
+                        toRemove.push(key);
+                    }
+                }
+            });
+            
+            const roomItemsList = getRoomItems();
+            roomItemsList.forEach(item => {
+                if (!itemMeshes.has(item) && !inventory.includes(item) && item !== grabbedItem) {
+                    const pos = findFreePosition();
+                    createItem3D(item, pos);
+                }
+            });
+            
+            toRemove.forEach(key => {
+                if (!inventory.includes(key) && !getRoomItems().includes(key) && key !== grabbedItem) {
+                    const obj = itemMeshes.get(key);
+                    if (obj) {
+                        scene.remove(obj.mesh);
+                        scene.remove(obj.label);
+                        itemMeshes.delete(key);
+                    }
+                    if (outlineMeshes.has(key)) {
+                        scene.remove(outlineMeshes.get(key));
+                        outlineMeshes.delete(key);
+                    }
+                    const body = itemBodies.get(key);
+                    if (body) {
+                        world.removeBody(body);
+                        itemBodies.delete(key);
+                    }
+                    itemData.delete(key);
+                }
+            });
+            
+            updateMenuStats();
+        }
+        
+        // ============ ПОДСВЕТКА ПРИ НАВЕДЕНИИ ============
+        
+        function updateHover(pointerX, pointerY) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            const pointer = new THREE.Vector2(
+                ((pointerX - rect.left) / rect.width) * 2 - 1,
+                -((pointerY - rect.top) / rect.height) * 2 + 1
+            );
+            
+            raycaster.setFromCamera(pointer, camera);
+            
+            const meshes = [];
+            itemMeshes.forEach((value) => {
+                if (!inventory.includes(value.mesh.userData.itemName)) {
+                    meshes.push(value.mesh);
+                }
+            });
+            
+            const intersects = raycaster.intersectObjects(meshes);
+            let newHoveredItem = null;
+            
+            if (intersects.length > 0 && !isDragging) {
+                const hitMesh = intersects[0].object;
+                const itemName = hitMesh.userData.itemName;
+                if (itemName && !inventory.includes(itemName)) {
+                    newHoveredItem = itemName;
+                }
+            }
+            
+            // Убираем подсветку со старого
+            if (hoveredItem && hoveredItem !== newHoveredItem) {
+                const oldOutline = outlineMeshes.get(hoveredItem);
+                if (oldOutline) {
+                    oldOutline.visible = false;
+                }
+            }
+            
+            // Добавляем подсветку на новый
+            if (newHoveredItem) {
+                const newOutline = outlineMeshes.get(newHoveredItem);
+                if (newOutline) {
+                    newOutline.visible = true;
+                    // Анимируем цвет
+                    const time = Date.now() / 1000;
+                    const hue = (Math.sin(time * 0.5) * 0.5 + 0.5) * 0.6 + 0.3;
+                    newOutline.material.color.setHSL(hue, 1, 0.5);
+                }
+                renderer.domElement.classList.add('grab-hover');
+            } else {
+                renderer.domElement.classList.remove('grab-hover');
+            }
+            
+            hoveredItem = newHoveredItem;
+        }
+        
+        // ============ ФИЗИЧЕСКАЯ СИНХРОНИЗАЦИЯ ============
+        
+        function syncPhysics() {
+            itemBodies.forEach((body, name) => {
+                if (name === grabbedItem && isDragging) return;
+                
+                const data = itemData.get(name);
+                if (data && data.mesh) {
+                    data.mesh.position.copy(body.position);
+                    data.mesh.quaternion.copy(body.quaternion);
+                    
+                    // Синхронизируем контур
+                    const outline = outlineMeshes.get(name);
+                    if (outline) {
+                        outline.position.copy(body.position);
+                        outline.quaternion.copy(body.quaternion);
+                    }
+                    
+                    if (data.label) {
+                        data.label.position.copy(body.position);
+                        data.label.position.y += 0.6;
+                    }
+                }
+            });
+        }
+        
+        // ============ DRAG & DROP ============
+        
+        function startDrag(itemName, mouseX, mouseY) {
+            if (!itemMeshes.has(itemName)) return;
+            if (inventory.includes(itemName)) {
+                addLog(`📦 ${itemName} в инвентаре, нельзя схватить`);
+                return;
+            }
+            
+            if (isDragging) {
+                endDrag();
+            }
+            
+            const data = itemData.get(itemName);
+            if (!data) return;
+            
+            grabbedItem = itemName;
+            isDragging = true;
+            
+            // Убираем подсветку
+            if (hoveredItem) {
+                const outline = outlineMeshes.get(hoveredItem);
+                if (outline) outline.visible = false;
+                hoveredItem = null;
+            }
+            
+            const body = itemBodies.get(itemName);
+            if (body) {
+                body.type = CANNON.Body.KINEMATIC;
+                const rect = renderer.domElement.getBoundingClientRect();
+                const pointer = new THREE.Vector2(
+                    ((mouseX - rect.left) / rect.width) * 2 - 1,
+                    -((mouseY - rect.top) / rect.height) * 2 + 1
+                );
+                
+                raycaster.setFromCamera(pointer, camera);
+                const planeY = body.position.y;
+                const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -planeY);
+                const intersection = new THREE.Vector3();
+                const ray = raycaster.ray;
+                
+                if (ray.intersectPlane(plane, intersection)) {
+                    dragStartPosition.copy(intersection).sub(body.position);
+                } else {
+                    dragStartPosition.set(0, 0, 0);
+                }
+            }
+            
+            controls.enabled = false;
+            renderer.domElement.classList.add('grabbing');
+            renderer.domElement.classList.remove('grab-hover');
+            
+            addLog(`✋ Ты схватил ${itemName}`);
+            updateMenuStats();
+        }
+        
+        function updateDrag(mouseX, mouseY) {
+            if (!isDragging || !grabbedItem) return;
+            
+            const data = itemData.get(grabbedItem);
+            if (!data) return;
+            
+            const rect = renderer.domElement.getBoundingClientRect();
+            const pointer = new THREE.Vector2(
+                ((mouseX - rect.left) / rect.width) * 2 - 1,
+                -((mouseY - rect.top) / rect.height) * 2 + 1
+            );
+            
+            raycaster.setFromCamera(pointer, camera);
+            
+            const body = itemBodies.get(grabbedItem);
+            if (body) {
+                const planeY = Math.max(0.3, body.position.y);
+                const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -planeY);
+                const intersection = new THREE.Vector3();
+                const ray = raycaster.ray;
+                
+                if (ray.intersectPlane(plane, intersection)) {
+                    let targetX = Math.max(-3.2, Math.min(3.2, intersection.x - dragStartPosition.x));
+                    let targetZ = Math.max(-3.2, Math.min(3.2, intersection.z - dragStartPosition.z));
+                    
+                    body.position.x = targetX;
+                    body.position.z = targetZ;
+                    body.position.y = Math.max(0.3, body.position.y);
+                    
+                    if (data.mesh) {
+                        data.mesh.position.copy(body.position);
+                        data.mesh.quaternion.copy(body.quaternion);
+                        const outline = outlineMeshes.get(grabbedItem);
+                        if (outline) {
+                            outline.position.copy(body.position);
+                            outline.quaternion.copy(body.quaternion);
+                        }
+                        if (data.label) {
+                            data.label.position.copy(body.position);
+                            data.label.position.y += 0.6;
+                        }
+                    }
+                }
+            }
+        }
+        
+        function endDrag() {
+            if (!isDragging || !grabbedItem) return;
+            
+            const body = itemBodies.get(grabbedItem);
+            if (body) {
+                body.type = CANNON.Body.DYNAMIC;
+                body.velocity.set(
+                    (Math.random() - 0.5) * 0.5,
+                    0.2 + Math.random() * 0.3,
+                    (Math.random() - 0.5) * 0.5
+                );
+            }
+            
+            addLog(`✋ Ты отпустил ${grabbedItem}`);
+            
+            grabbedItem = null;
+            isDragging = false;
+            controls.enabled = true;
+            renderer.domElement.classList.remove('grabbing');
+            
+            updateMenuStats();
+        }
+        
+        // ============ ВЫХОД ИЗ ИГРЫ ============
+        
+        window.exitGame = function() {
+            if (confirm('Ты уверен, что хочешь выйти из игры?')) {
+                addLog('🚪 Выход из игры...');
+                setTimeout(() => {
+                    document.body.innerHTML = `
+                        <div style="display:flex;justify-content:center;align-items:center;height:100vh;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);font-family:'Segoe UI',sans-serif;flex-direction:column;color:white;">
+                            <div style="font-size:64px;margin-bottom:20px;">🎮</div>
+                            <h1 style="font-size:32px;margin-bottom:10px;">Выход из игры</h1>
+                            <p style="font-size:18px;opacity:0.8;">Спасибо за игру! 👋</p>
+                            <button onclick="location.reload()" style="margin-top:30px;padding:12px 30px;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;background:white;color:#667eea;transition:all 0.3s;">
+                                🔄 Начать заново
+                            </button>
+                        </div>
+                    `;
+                }, 500);
+            }
+        };
+        
+        // ============ ВЫДАЧА ПРЕДМЕТОВ ============
+        
+        function showRewardNotification(emoji, title, subtitle) {
+            const notification = document.getElementById('rewardNotification');
+            document.getElementById('rewardEmoji').textContent = emoji;
+            document.getElementById('rewardTitle').textContent = title;
+            document.getElementById('rewardSubtitle').textContent = subtitle;
+            
+            notification.classList.remove('hidden');
+            
+            setTimeout(() => {
+                notification.classList.add('hidden');
+            }, 2000);
+        }
+        
+        window.giveItem = function() {
+            const input = document.getElementById('rewardInput');
+            const itemName = input.value.trim().toLowerCase();
+            
+            if (!itemName) {
+                addLog('⚠️ Введи название предмета для выдачи!');
+                return;
+            }
+            
+            if (itemProperties[itemName]) {
+                if (inventory.includes(itemName)) {
+                    addLog(`⚠️ ${itemName} уже есть в инвентаре!`);
+                    showRewardNotification('⚠️', 'Уже есть!', `${itemName} уже в инвентаре`);
+                    return;
+                }
+                
+                if (isDragging && grabbedItem === itemName) {
+                    endDrag();
+                }
+                
+                inventory.push(itemName);
+                
+                const body = itemBodies.get(itemName);
+                if (body) {
+                    world.removeBody(body);
+                    itemBodies.delete(itemName);
+                }
+                const obj = itemMeshes.get(itemName);
+                if (obj) {
+                    scene.remove(obj.mesh);
+                    scene.remove(obj.label);
+                    itemMeshes.delete(itemName);
+                }
+                if (outlineMeshes.has(itemName)) {
+                    scene.remove(outlineMeshes.get(itemName));
+                    outlineMeshes.delete(itemName);
+                }
+                itemData.delete(itemName);
+                
+                const props = itemProperties[itemName];
+                addLog(`🎁 Выдан предмет: ${itemName} ${props.emoji}`);
+                showRewardNotification(
+                    props.emoji || '🎁',
+                    `Получен предмет!`,
+                    `${itemName} (${props.color}, ${props.weight}г)`
+                );
+                updateInventoryUI();
+                refreshRoomItems();
+                renderMenu();
+                input.value = '';
+            } else {
+                addLog(`❌ Предмета "${itemName}" не существует`);
+                showRewardNotification('❌', 'Не найден', `Предмет "${itemName}" не существует`);
+            }
+        };
+        
+        window.giveRandomItem = function() {
+            const allItems = Object.keys(itemProperties);
+            const availableItems = allItems.filter(item => !inventory.includes(item));
+            
+            if (availableItems.length === 0) {
+                const newName = itemNames[Math.floor(Math.random() * itemNames.length)] + '_' + Math.floor(Math.random() * 100);
+                const newProps = {
+                    color: Math.floor(Math.random() * 0xffffff),
+                    size: 0.5 + Math.random() * 0.6,
+                    emoji: emojis[Math.floor(Math.random() * emojis.length)],
+                    weight: Math.floor(Math.random() * 900) + 100,
+                    material: materials[Math.floor(Math.random() * materials.length)],
+                    shape: shapes[Math.floor(Math.random() * shapes.length)]
+                };
+                itemProperties[newName] = newProps;
+                
+                inventory.push(newName);
+                addLog(`🎲 Создан и выдан новый предмет: ${newName} ${newProps.emoji}`);
+                showRewardNotification(
+                    newProps.emoji,
+                    `Новый предмет!`,
+                    `${newName} создан и выдан!`
+                );
+                updateInventoryUI();
+                refreshRoomItems();
+                renderMenu();
+                return;
+            }
+            
+            const randomItem = availableItems[Math.floor(Math.random() * availableItems.length)];
+            const props = itemProperties[randomItem];
+            
+            if (isDragging && grabbedItem === randomItem) {
+                endDrag();
+            }
+            
+            inventory.push(randomItem);
+            
+            const body = itemBodies.get(randomItem);
+            if (body) {
+                world.removeBody(body);
+                itemBodies.delete(randomItem);
+            }
+            const obj = itemMeshes.get(randomItem);
+            if (obj) {
+                scene.remove(obj.mesh);
+                scene.remove(obj.label);
+                itemMeshes.delete(randomItem);
+            }
+            if (outlineMeshes.has(randomItem)) {
+                scene.remove(outlineMeshes.get(randomItem));
+                outlineMeshes.delete(randomItem);
+            }
+            itemData.delete(randomItem);
+            
+            addLog(`🎲 Случайная выдача: ${randomItem} ${props.emoji}`);
+            showRewardNotification(
+                props.emoji || '🎲',
+                `Случайный предмет!`,
+                `Ты получил ${randomItem}!`
+            );
+            updateInventoryUI();
+            refreshRoomItems();
+            renderMenu();
+        };
+        
+        document.getElementById('rewardInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                window.giveItem();
+            }
+        });
+        
+        // ============ МЕНЮ ПРЕДМЕТОВ ============
+        
+        function updateMenuStats() {
+            const total = Object.keys(itemProperties).length;
+            const invCount = inventory.length;
+            const roomCount = getRoomItems().length;
+            const grabbed = isDragging ? 1 : 0;
+            
+            document.getElementById('totalItems').textContent = total;
+            document.getElementById('inventoryCount').textContent = invCount;
+            document.getElementById('roomCount').textContent = roomCount;
+            document.getElementById('grabbedCount').textContent = grabbed;
+            document.getElementById('totalBadge').textContent = total;
+        }
+        
+        function renderMenu() {
+            const grid = document.getElementById('itemsGrid');
+            const items = Object.keys(itemProperties);
+            
+            if (items.length === 0) {
+                grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#999;padding:40px 0;">Нет предметов. Создайте новый!</div>';
+                return;
+            }
+            
+            grid.innerHTML = items.map(item => {
+                const props = itemProperties[item];
+                const inInventory = inventory.includes(item);
+                const inRoom = !inInventory && itemMeshes.has(item);
+                const isGrabbed = isDragging && grabbedItem === item;
+                
+                let statusText, statusClass;
+                if (isGrabbed) {
+                    statusText = '✋ В руках';
+                    statusClass = 'status-hand';
+                } else if (inInventory) {
+                    statusText = '🎒 В инвентаре';
+                    statusClass = 'status-inventory';
+                } else if (inRoom) {
+                    statusText = '🏠 В комнате';
+                    statusClass = 'status-room';
+                } else {
+                    statusText = '❌ Не существует';
+                    statusClass = 'status-none';
+                }
+                
+                const cardClass = isGrabbed ? 'in-hand' : inInventory ? 'in-inventory' : inRoom ? 'in-room' : '';
+                
+                return `
+                    <div class="item-card ${cardClass}">
+                        <span class="item-emoji">${props.emoji || '📦'}</span>
+                        <div class="item-name">${item}</div>
+                        <div class="item-props">
+                            ${props.color || '?'} • ${props.material || '?'} • ${props.weight || '?'}г
+                        </div>
+                        <div class="item-status ${statusClass}">${statusText}</div>
+                        <div class="item-actions">
+                            ${!inInventory && inRoom ? `<button class="btn-take" onclick="window.takeItemFromMenu('${item}')">📥 Взять</button>` : ''}
+                            ${inInventory ? `<button class="btn-drop" onclick="window.dropItemFromMenu('${item}')">📤 Положить</button>` : ''}
+                            ${inInventory ? `<button class="btn-examine" onclick="window.examineItemFromMenu('${item}')">🔍</button>` : ''}
+                            ${inRoom && !inInventory ? `<button class="btn-grab" onclick="window.grabItemFromMenu('${item}')">✋ Схватить</button>` : ''}
+                            <button class="btn-delete" onclick="window.deleteItemFromMenu('${item}')">🗑️</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            updateMenuStats();
+        }
+        
+        window.toggleMenu = function() {
+            const menu = document.getElementById('mainMenu');
+            menu.classList.toggle('hidden');
+            if (!menu.classList.contains('hidden')) {
+                renderMenu();
+            }
+        };
+        
+        window.takeItemFromMenu = function(item) {
+            if (isDragging && grabbedItem === item) {
+                endDrag();
+            }
+            const roomItemsList = getRoomItems();
+            if (roomItemsList.includes(item)) {
+                const body = itemBodies.get(item);
+                if (body) {
+                    world.removeBody(body);
+                    itemBodies.delete(item);
+                }
+                const obj = itemMeshes.get(item);
+                if (obj) {
+                    scene.remove(obj.mesh);
+                    scene.remove(obj.label);
+                    itemMeshes.delete(item);
+                }
+                if (outlineMeshes.has(item)) {
+                    scene.remove(outlineMeshes.get(item));
+                    outlineMeshes.delete(item);
+                }
+                itemData.delete(item);
+                inventory.push(item);
+                addLog(`✅ Ты взял ${item} в инвентарь`);
+                updateInventoryUI();
+                refreshRoomItems();
+                renderMenu();
+            }
+        };
+        
+        window.dropItemFromMenu = function(item) {
+            if (inventory.includes(item)) {
+                const index = inventory.indexOf(item);
+                inventory.splice(index, 1);
+                const pos = findFreePosition();
+                createItem3D(item, pos);
+                addLog(`✅ Ты положил ${item} в комнату`);
+                updateInventoryUI();
+                refreshRoomItems();
+                renderMenu();
+            }
+        };
+        
+        window.examineItemFromMenu = function(item) {
+            if (inventory.includes(item)) {
+                const props = itemProperties[item];
+                if (props) {
+                    addLog(`🔍 ${props.emoji} ${item}: цвет=${props.color}, материал=${props.material}, вес=${props.weight}г`);
+                } else {
+                    addLog(`🔍 Это просто ${item}`);
+                }
+            } else {
+                addLog(`❌ У тебя нет ${item}`);
+            }
+        };
+        
+        window.grabItemFromMenu = function(item) {
+            if (isDragging) {
+                endDrag();
+            }
+            setTimeout(() => {
+                if (itemMeshes.has(item) && !inventory.includes(item)) {
+                    const rect = renderer.domElement.getBoundingClientRect();
+                    const centerX = rect.left + rect.width / 2;
+                    const centerY = rect.top + rect.height / 2;
+                    startDrag(item, centerX, centerY);
+                    renderMenu();
+                }
+            }, 50);
+        };
+        
+        window.deleteItemFromMenu = function(item) {
+            if (isDragging && grabbedItem === item) {
+                endDrag();
+            }
+            
+            if (inventory.includes(item)) {
+                const index = inventory.indexOf(item);
+                inventory.splice(index, 1);
+            }
+            
+            delete itemProperties[item];
+            const body = itemBodies.get(item);
+            if (body) {
+                world.removeBody(body);
+                itemBodies.delete(item);
+            }
+            const obj = itemMeshes.get(item);
+            if (obj) {
+                scene.remove(obj.mesh);
+                scene.remove(obj.label);
+                itemMeshes.delete(item);
+            }
+            if (outlineMeshes.has(item)) {
+                scene.remove(outlineMeshes.get(item));
+                outlineMeshes.delete(item);
+            }
+            itemData.delete(item);
+            
+            addLog(`💥 ${item} стерт из реальности!`);
+            updateInventoryUI();
+            refreshRoomItems();
+            renderMenu();
+        };
+        
+        // ============ ОБРАБОТЧИКИ МЫШИ ============
+        
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2();
+        let isPointerDown = false;
+        
+        renderer.domElement.addEventListener('pointerdown', (event) => {
+            if (event.button === 0) {
+                isPointerDown = true;
+                
+                const rect = renderer.domElement.getBoundingClientRect();
+                pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+                
+                raycaster.setFromCamera(pointer, camera);
+                
+                const meshes = [];
+                itemMeshes.forEach((value) => {
+                    if (!inventory.includes(value.mesh.userData.itemName)) {
+                        meshes.push(value.mesh);
+                    }
+                });
+                
+                const intersects = raycaster.intersectObjects(meshes);
+                
+                if (intersects.length > 0) {
+                    const hitMesh = intersects[0].object;
+                    const itemName = hitMesh.userData.itemName;
+                    
+                    if (itemName && !inventory.includes(itemName)) {
+                        startDrag(itemName, event.clientX, event.clientY);
+                        return;
+                    }
+                }
+            }
+        });
+        
+        renderer.domElement.addEventListener('pointermove', (event) => {
+            if (isDragging) {
+                updateDrag(event.clientX, event.clientY);
+                return;
+            }
+            
+            updateHover(event.clientX, event.clientY);
+        });
+        
+        document.addEventListener('pointerup', (event) => {
+            if (event.button === 0) {
+                isPointerDown = false;
+                if (isDragging) {
+                    endDrag();
+                }
+            }
+        });
+        
+        document.addEventListener('pointerleave', () => {
+            if (isDragging) {
+                endDrag();
+            }
+            if (hoveredItem) {
+                const outline = outlineMeshes.get(hoveredItem);
+                if (outline) outline.visible = false;
+                hoveredItem = null;
+                renderer.domElement.classList.remove('grab-hover');
+            }
+        });
+        
+        // ============ ОБРАБОТЧИК КЛАВИШ ============
+        
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'u' || e.key === 'U') {
+                e.preventDefault();
+                spawnItem();
+                return;
+            }
+            
+            if (e.key === ' ' || e.key === 'Space') {
+                e.preventDefault();
+                if (isDragging) {
+                    throwUpItem();
+                } else {
+                    addLog('💥 Сначала схвати предмет (зажми ЛКМ)!');
+                }
+                return;
+            }
+            
+            if (e.key === 'Escape' && isDragging) {
+                endDrag();
+            }
+            if (e.key === 'm' || e.key === 'М') {
+                window.toggleMenu();
+            }
+        });
+        
+        // ============ ПОДБРОС ВВЕРХ ============
+        
+        function throwUpItem() {
+            if (!isDragging || !grabbedItem) {
+                addLog('❌ Ты ничего не держишь');
+                return;
+            }
+            
+            const body = itemBodies.get(grabbedItem);
+            if (body) {
+                body.type = CANNON.Body.DYNAMIC;
+                body.velocity.set(0, 5 + Math.random() * 2, 0);
+                body.angularVelocity.set(
+                    (Math.random() - 0.5) * 3,
+                    (Math.random() - 0.5) * 3,
+                    (Math.random() - 0.5) * 3
+                );
+                
+                addLog(`💥 Ты подбросил ${grabbedItem} вверх!`);
+            }
+            
+            grabbedItem = null;
+            isDragging = false;
+            controls.enabled = true;
+            renderer.domElement.classList.remove('grabbing');
+            updateMenuStats();
+        }
+        
+        function throwItemAction() {
+            if (!isDragging || !grabbedItem) {
+                addLog('❌ Ты ничего не держишь');
+                return;
+            }
+            
+            const body = itemBodies.get(grabbedItem);
+            if (body) {
+                const direction = new THREE.Vector3();
+                camera.getWorldDirection(direction);
+                direction.y = 0.3;
+                direction.normalize();
+                
+                const power = 3 + Math.random() * 2;
+                body.type = CANNON.Body.DYNAMIC;
+                body.velocity.set(
+                    direction.x * power,
+                    direction.y * power + 1,
+                    direction.z * power
+                );
+                body.angularVelocity.set(
+                    (Math.random() - 0.5) * 3,
+                    (Math.random() - 0.5) * 3,
+                    (Math.random() - 0.5) * 3
+                );
+                
+                addLog(`💫 Ты бросил ${grabbedItem}!`);
+            }
+            
+            grabbedItem = null;
+            isDragging = false;
+            controls.enabled = true;
+            renderer.domElement.classList.remove('grabbing');
+            updateMenuStats();
+        }
+        
+        // ============ СПАВН ПО КЛАВИШЕ ============
+        
+        function spawnItem() {
+            const namePrefix = itemNames[Math.floor(Math.random() * itemNames.length)];
+            const number = Math.floor(Math.random() * 100);
+            let itemName = namePrefix + '_' + number;
+            
+            let counter = 0;
+            while (itemProperties[itemName] && counter < 10) {
+                itemName = namePrefix + '_' + (number + counter);
+                counter++;
+            }
+            
+            const newProps = {
+                color: Math.floor(Math.random() * 0xffffff),
+                size: 0.5 + Math.random() * 0.6,
+                emoji: emojis[Math.floor(Math.random() * emojis.length)],
+                weight: Math.floor(Math.random() * 900) + 100,
+                material: materials[Math.floor(Math.random() * materials.length)],
+                shape: shapes[Math.floor(Math.random() * shapes.length)]
+            };
+            
+            itemProperties[itemName] = newProps;
+            const pos = findFreePosition();
+            createItem3D(itemName, pos);
+            
+            addLog(`⚡ Спавн: ${itemName} ${newProps.emoji} появился в комнате!`);
+            showRewardNotification(
+                newProps.emoji || '⚡',
+                'Новый предмет!',
+                `${itemName} появился в комнате!`
+            );
+            updateInventoryUI();
+            refreshRoomItems();
+            renderMenu();
+        }
+        
+        // ============ КОМАНДЫ ============
+        
+        window.executeCommand = function(action) {
+            const input = document.getElementById('commandInput');
+            const itemName = input.value.trim().toLowerCase();
+            
+            if (!itemName && action !== 'создать' && action !== 'бросить') {
+                addLog('⚠️ Введи название предмета!');
+                return;
+            }
+            
+            switch(action) {
+                case 'взять':
+                    window.takeItemFromMenu(itemName);
+                    break;
+                case 'положить':
+                    window.dropItemFromMenu(itemName);
+                    break;
+                case 'изучить':
+                    window.examineItemFromMenu(itemName);
+                    break;
+                case 'создать':
+                    createItem(itemName || 'предмет_' + Date.now().toString().slice(-4));
+                    break;
+                case 'стереть':
+                    window.deleteItemFromMenu(itemName);
+                    break;
+                case 'бросить':
+                    throwItemAction();
+                    return;
+                default:
+                    addLog('❌ Неизвестное действие');
+            }
+            
+            input.value = '';
+            updateInventoryUI();
+            refreshRoomItems();
+            renderMenu();
+        };
+        
+        function createItem(itemName) {
+            if (itemProperties[itemName]) {
+                addLog(`⚠️ Предмет ${itemName} уже существует`);
+                return;
+            }
+            
+            const newProps = {
+                color: Math.floor(Math.random() * 0xffffff),
+                size: 0.5 + Math.random() * 0.6,
+                emoji: emojis[Math.floor(Math.random() * emojis.length)],
+                weight: Math.floor(Math.random() * 900) + 100,
+                material: materials[Math.floor(Math.random() * materials.length)],
+                shape: shapes[Math.floor(Math.random() * shapes.length)]
+            };
+            
+            itemProperties[itemName] = newProps;
+            const pos = findFreePosition();
+            createItem3D(itemName, pos);
+            addLog(`✨ Создан ${itemName} ${newProps.emoji} (вес: ${newProps.weight}г)`);
+            updateInventoryUI();
+            refreshRoomItems();
+            renderMenu();
+        }
+        
+        // ============ ОБРАБОТЧИК ВВОДА ============
+        
+        document.getElementById('commandInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                executeCommand('взять');
+            }
+        });
+        
+        // ============ АНИМАЦИЯ ============
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            world.step(1/60, 1/60, 3);
+            syncPhysics();
+            controls.update();
+            
+            // Анимация подсветки
+            if (hoveredItem && !isDragging) {
+                const outline = outlineMeshes.get(hoveredItem);
+                if (outline && outline.visible) {
+                    const time = Date.now() / 1000;
+                    const hue = (Math.sin(time * 0.5) * 0.5 + 0.5) * 0.6 + 0.3;
+                    outline.material.color.setHSL(hue, 1, 0.55);
+                }
+            }
+            
+            renderer.render(scene, camera);
+            labelRenderer.render(scene, camera);
+        }
+        
+        animate();
+        
+        // ============ ОБРАБОТЧИК РЕСАЙЗА ============
+        
+        window.addEventListener('resize', () => {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            
+            renderer.setSize(width, height);
+            labelRenderer.setSize(width, height);
+        });
+        
+        // ============ ИНИЦИАЛИЗАЦИЯ ============
+        
+        addLog('🏁 3D песочница с подсветкой объектов!');
+        addLog('✨ Наведи курсор на предмет - увидишь красивый контур!');
+        addLog('🖱️ Зажми ЛКМ на предмете и тащи его!');
+        addLog('⚡ Нажми U для спавна, Пробел для подброса');
+        updateInventoryUI();
+        refreshRoomItems();
+        updateMenuStats();
+        
+        console.log('🎮 3D Песочница с подсветкой объектов запущена!');
+        console.log('✨ Наведи курсор на предмет - появится подсветка!');
+    </script>
+</body>
+</html>
