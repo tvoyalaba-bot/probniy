@@ -1,0 +1,1966 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>3D Симулятор обороны · HD</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #fff; }
+  
+  #canvas-container { position: absolute; inset: 0; }
+  
+  #ui {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    width: 260px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 10;
+    pointer-events: none;
+  }
+  
+  .panel {
+    background: linear-gradient(135deg, rgba(20, 15, 40, 0.92), rgba(10, 8, 25, 0.92));
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(120, 80, 200, 0.5);
+    backdrop-filter: blur(14px);
+    pointer-events: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08);
+  }
+  
+  .title {
+    font-size: 11px;
+    color: #ff5577;
+    margin-bottom: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-shadow: 0 0 10px rgba(255, 85, 119, 0.5);
+  }
+  
+  .stat {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    margin: 5px 0;
+    align-items: center;
+  }
+  
+  .stat span:last-child { 
+    color: #ffd700; 
+    font-weight: 700;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+    font-variant-numeric: tabular-nums;
+  }
+  
+  .tower-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    background: linear-gradient(135deg, rgba(30, 40, 80, 0.9), rgba(15, 20, 50, 0.9));
+    border: 1.5px solid rgba(120, 80, 200, 0.6);
+    border-radius: 10px;
+    cursor: pointer;
+    margin-bottom: 6px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    color: #fff;
+    font-size: 12px;
+    width: 100%;
+    text-align: left;
+    font-family: inherit;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .tower-btn::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    transition: left 0.5s;
+  }
+  
+  .tower-btn:hover::before { left: 100%; }
+  
+  .tower-btn:hover { 
+    transform: translateX(-4px); 
+    border-color: #ffd700;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
+  }
+  
+  .tower-btn.selected { 
+    border-color: #ffd700; 
+    background: linear-gradient(135deg, rgba(90, 60, 160, 0.9), rgba(60, 40, 120, 0.9));
+    box-shadow: 0 0 25px rgba(255, 215, 0, 0.6), inset 0 0 20px rgba(255, 215, 0, 0.15);
+  }
+  
+  .tower-btn.disabled { opacity: 0.35; cursor: not-allowed; filter: grayscale(0.7); }
+  .tower-btn.disabled:hover { transform: none; border-color: rgba(120, 80, 200, 0.6); box-shadow: none; }
+  
+  .icon {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    flex-shrink: 0;
+    box-shadow: inset 0 -3px 8px rgba(0,0,0,0.5), 0 0 12px currentColor;
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+  
+  .info { flex: 1; }
+  .info b { font-size: 13px; display: block; letter-spacing: 0.5px; }
+  .info small { color: #a8a8c8; font-size: 10px; letter-spacing: 0.3px; }
+  
+  button.action {
+    width: 100%;
+    padding: 12px;
+    background: linear-gradient(135deg, #e94560, #b8304a);
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.25s;
+    font-family: inherit;
+    letter-spacing: 0.5px;
+    box-shadow: 0 4px 15px rgba(233, 69, 96, 0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+  }
+  
+  button.action:hover { 
+    background: linear-gradient(135deg, #ff5577, #d94060);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(233, 69, 96, 0.6), inset 0 1px 0 rgba(255,255,255,0.3);
+  }
+  
+  button.action:active { transform: translateY(0); }
+  button.action:disabled { 
+    background: linear-gradient(135deg, #333, #222); 
+    cursor: not-allowed; 
+    transform: none;
+    box-shadow: none;
+    opacity: 0.6;
+  }
+  
+  button.secondary { 
+    background: linear-gradient(135deg, #6a44a0, #4a2a80);
+    box-shadow: 0 4px 15px rgba(106, 68, 160, 0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+  }
+  
+  button.secondary:hover { 
+    background: linear-gradient(135deg, #7a54b0, #5a3a90);
+    box-shadow: 0 8px 25px rgba(106, 68, 160, 0.6), inset 0 1px 0 rgba(255,255,255,0.3);
+  }
+  
+  #hint {
+    position: absolute;
+    bottom: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, rgba(20, 15, 40, 0.85), rgba(10, 8, 25, 0.85));
+    padding: 10px 22px;
+    border-radius: 20px;
+    font-size: 12px;
+    color: #c8c8e0;
+    z-index: 10;
+    pointer-events: none;
+    border: 1px solid rgba(120, 80, 200, 0.4);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    letter-spacing: 0.3px;
+  }
+  
+  #hint b { color: #ffd700; }
+  
+  #gameOver {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle, rgba(60, 0, 20, 0.9), rgba(0,0,0,0.95));
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    z-index: 100;
+    text-align: center;
+    backdrop-filter: blur(10px);
+  }
+  
+  #gameOver h1 { 
+    font-size: 72px; 
+    color: #e94560; 
+    margin-bottom: 20px; 
+    text-shadow: 0 0 40px #e94560, 0 0 80px #e94560, 0 4px 8px rgba(0,0,0,0.8);
+    animation: pulse 2s infinite;
+  }
+  
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+  
+  #gameOver p { font-size: 24px; margin-bottom: 30px; color: #ffd700; text-shadow: 0 0 20px rgba(255,215,0,0.6); }
+  
+  #gameOver button {
+    padding: 18px 50px;
+    font-size: 18px;
+    background: linear-gradient(135deg, #e94560, #b8304a);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 700;
+    letter-spacing: 1px;
+    box-shadow: 0 8px 30px rgba(233, 69, 96, 0.5);
+    transition: all 0.25s;
+  }
+  
+  #gameOver button:hover { 
+    transform: translateY(-3px) scale(1.05);
+    box-shadow: 0 12px 40px rgba(233, 69, 96, 0.8);
+  }
+  
+  #towerInfo {
+    position: absolute;
+    bottom: 15px;
+    left: 15px;
+    background: linear-gradient(135deg, rgba(20, 15, 40, 0.95), rgba(10, 8, 25, 0.95));
+    padding: 14px 18px;
+    border-radius: 12px;
+    border: 1.5px solid #ffd700;
+    font-size: 13px;
+    display: none;
+    z-index: 10;
+    min-width: 220px;
+    box-shadow: 0 0 30px rgba(255,215,0,0.35), inset 0 1px 0 rgba(255,255,255,0.1);
+    backdrop-filter: blur(14px);
+    animation: slideIn 0.25s ease-out;
+  }
+  
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  
+  #towerInfo .row { display: flex; justify-content: space-between; margin: 5px 0; }
+  #towerInfo .row span:last-child { color: #ffd700; font-weight: 700; }
+  
+  #towerInfo .upgrade { 
+    color: #7fff7f; 
+    cursor: pointer; 
+    font-weight: 700; 
+    margin-top: 10px; 
+    display: block; 
+    text-align: center; 
+    padding: 8px; 
+    background: linear-gradient(135deg, rgba(76,175,80,0.3), rgba(46,125,50,0.3));
+    border: 1px solid rgba(76,175,80,0.6);
+    border-radius: 7px;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+  }
+  
+  #towerInfo .upgrade:hover { 
+    background: linear-gradient(135deg, rgba(76,175,80,0.5), rgba(46,125,50,0.5));
+    box-shadow: 0 0 15px rgba(76,175,80,0.6);
+    transform: translateY(-1px);
+  }
+  
+  #towerInfo .sell { 
+    color: #ff5577; 
+    cursor: pointer; 
+    font-weight: 700; 
+    margin-top: 6px; 
+    display: block; 
+    text-align: center; 
+    padding: 8px; 
+    background: linear-gradient(135deg, rgba(233,69,96,0.3), rgba(184,48,74,0.3));
+    border: 1px solid rgba(233,69,96,0.6);
+    border-radius: 7px;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+  }
+  
+  #towerInfo .sell:hover { 
+    background: linear-gradient(135deg, rgba(233,69,96,0.5), rgba(184,48,74,0.5));
+    box-shadow: 0 0 15px rgba(233,69,96,0.6);
+    transform: translateY(-1px);
+  }
+  
+  #loading {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle, #1a0a2e, #000);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    z-index: 1000;
+    color: #fff;
+    transition: opacity 0.6s;
+  }
+  
+  #loading .spinner {
+    width: 60px; height: 60px;
+    border: 4px solid rgba(120, 80, 200, 0.2);
+    border-top-color: #e94560;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+    box-shadow: 0 0 30px rgba(233, 69, 96, 0.4);
+  }
+  
+  @keyframes spin { to { transform: rotate(360deg); } }
+  
+  #loading h2 { font-size: 24px; letter-spacing: 4px; text-shadow: 0 0 20px rgba(120,80,200,0.8); }
+  #loading p { color: #888; margin-top: 10px; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <h2>ЗАГРУЗКА...</h2>
+  <p>Подготовка поля боя</p>
+</div>
+
+<div id="canvas-container"></div>
+
+<div id="ui">
+  <div class="panel">
+    <div class="title">📊 Статистика</div>
+    <div class="stat"><span>💰 Золото:</span><span id="gold">200</span></div>
+    <div class="stat"><span>❤️ Жизни:</span><span id="lives">20</span></div>
+    <div class="stat"><span>🌊 Волна:</span><span id="wave">0</span></div>
+    <div class="stat"><span>👾 Врагов:</span><span id="enemies">0</span></div>
+  </div>
+  
+  <div class="panel">
+    <div class="title">🏗️ Строительство</div>
+    <button class="tower-btn" data-type="archer">
+      <div class="icon" style="background: linear-gradient(135deg, #66bb6a, #2e7d32); color: #4CAF50">🏹</div>
+      <div class="info"><b>Лучник</b><small>50💰 · Быстрый</small></div>
+    </button>
+    <button class="tower-btn" data-type="cannon">
+      <div class="icon" style="background: linear-gradient(135deg, #ff8a65, #d84315); color: #FF5722">💣</div>
+      <div class="info"><b>Пушка</b><small>100💰 · По площади</small></div>
+    </button>
+    <button class="tower-btn" data-type="frost">
+      <div class="icon" style="background: linear-gradient(135deg, #4fc3f7, #0277bd); color: #03A9F4">❄️</div>
+      <div class="info"><b>Ледяная</b><small>75💰 · Замедление</small></div>
+    </button>
+    <button class="tower-btn" data-type="fire">
+      <div class="icon" style="background: linear-gradient(135deg, #ff5252, #b71c1c); color: #F44336">🔥</div>
+      <div class="info"><b>Огненная</b><small>120💰 · Мощная</small></div>
+    </button>
+  </div>
+  
+  <div class="panel">
+    <div class="title">⚔️ Управление</div>
+    <button class="action" id="startWave">▶ Начать волну 1</button>
+    <button class="action secondary" id="speedBtn" style="margin-top:6px">⏩ Скорость: x1</button>
+    <button class="action secondary" id="cameraBtn" style="margin-top:6px">📷 Камера</button>
+  </div>
+</div>
+
+<div id="towerInfo"></div>
+<div id="hint"><b>ЛКМ</b> — построить · <b>ПКМ+drag</b> — поворот камеры · <b>Колесо</b> — зум · <b>Space</b> — волна</div>
+
+<div id="gameOver">
+  <h1>💀 ПОРАЖЕНИЕ</h1>
+  <p id="finalScore">Волн пройдено: 0</p>
+  <button onclick="location.reload()">🔄 Играть снова</button>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+
+// ============== SETUP ==============
+const container = document.getElementById('canvas-container');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x05030f);
+scene.fog = new THREE.FogExp2(0x1a0a2e, 0.012);
+
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 300);
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+container.appendChild(renderer.domElement);
+
+// ============== POSTPROCESSING ==============
+const composer = new EffectComposer(renderer);
+const renderPass = new RenderPass(scene, camera);
+composer.addPass(renderPass);
+
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  0.9,  // strength
+  0.6,  // radius
+  0.8   // threshold
+);
+composer.addPass(bloomPass);
+
+const smaaPass = new SMAAPass(window.innerWidth, window.innerHeight);
+composer.addPass(smaaPass);
+
+const outputPass = new OutputPass();
+composer.addPass(outputPass);
+
+// ============== ANIMATED STARFIELD ==============
+function createStarfield() {
+  const geo = new THREE.BufferGeometry();
+  const count = 3000;
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const r = 80 + Math.random() * 80;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    positions[i*3] = Math.sin(phi) * Math.cos(theta) * r;
+    positions[i*3+1] = Math.abs(Math.cos(phi) * r) * 0.6 + 20;
+    positions[i*3+2] = Math.sin(phi) * Math.sin(theta) * r;
+    
+    const c = new THREE.Color().setHSL(0.5 + Math.random() * 0.25, 0.7, 0.6 + Math.random() * 0.4);
+    colors[i*3] = c.r; colors[i*3+1] = c.g; colors[i*3+2] = c.b;
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const mat = new THREE.PointsMaterial({
+    size: 0.5, vertexColors: true, transparent: true, opacity: 0.9,
+    blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
+  });
+  const stars = new THREE.Points(geo, mat);
+  scene.add(stars);
+  return stars;
+}
+const starfield = createStarfield();
+
+// ============== SKY DOME ==============
+function createSky() {
+  const skyGeo = new THREE.SphereGeometry(150, 32, 16);
+  const skyMat = new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    uniforms: {
+      topColor: { value: new THREE.Color(0x1a0a3e) },
+      bottomColor: { value: new THREE.Color(0x4a1040) },
+      midColor: { value: new THREE.Color(0x2a1a5e) },
+      offset: { value: 20 },
+      exponent: { value: 0.7 }
+    },
+    vertexShader: `
+      varying vec3 vWorldPosition;
+      void main() {
+        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+        vWorldPosition = worldPosition.xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 topColor;
+      uniform vec3 bottomColor;
+      uniform vec3 midColor;
+      uniform float offset;
+      uniform float exponent;
+      varying vec3 vWorldPosition;
+      void main() {
+        float h = normalize(vWorldPosition + offset).y;
+        float t = pow(max(h, 0.0), exponent);
+        vec3 col;
+        if (h < 0.3) col = mix(bottomColor, midColor, max(h, 0.0) / 0.3);
+        else col = mix(midColor, topColor, (h - 0.3) / 0.7);
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `
+  });
+  const sky = new THREE.Mesh(skyGeo, skyMat);
+  scene.add(sky);
+  return sky;
+}
+createSky();
+
+// ============== LIGHTS ==============
+const ambient = new THREE.AmbientLight(0x404870, 0.9);
+scene.add(ambient);
+
+const hemi = new THREE.HemisphereLight(0x8090ff, 0x2a1a0a, 0.7);
+scene.add(hemi);
+
+const sun = new THREE.DirectionalLight(0xffd0a0, 1.6);
+sun.position.set(25, 40, 20);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -35;
+sun.shadow.camera.right = 35;
+sun.shadow.camera.top = 35;
+sun.shadow.camera.bottom = -35;
+sun.shadow.camera.near = 1;
+sun.shadow.camera.far = 120;
+sun.shadow.bias = -0.0003;
+sun.shadow.normalBias = 0.02;
+scene.add(sun);
+scene.add(sun.target);
+
+// Цветной подсвет (rim light)
+const rimLight = new THREE.DirectionalLight(0x4488ff, 0.7);
+rimLight.position.set(-25, 15, -20);
+scene.add(rimLight);
+
+const warmFill = new THREE.DirectionalLight(0xff5588, 0.4);
+warmFill.position.set(15, 10, -25);
+scene.add(warmFill);
+
+// ============== MAP ==============
+const CELL = 4;
+const GRID_W = 14;
+const GRID_H = 10;
+const MAP_OFFSET_X = -GRID_W * CELL / 2;
+const MAP_OFFSET_Z = -GRID_H * CELL / 2;
+
+const pathCells = [
+  {x: -1, y: 1}, {x: 2, y: 1}, {x: 2, y: 4}, {x: 6, y: 4},
+  {x: 6, y: 2}, {x: 10, y: 2}, {x: 10, y: 8}, {x: 3, y: 8},
+  {x: 3, y: 10}, {x: 14, y: 10}
+];
+
+const pathCellSet = new Set();
+for (let i = 0; i < pathCells.length - 1; i++) {
+  const a = pathCells[i], b = pathCells[i+1];
+  const dx = Math.sign(b.x - a.x), dy = Math.sign(b.y - a.y);
+  let x = a.x, y = a.y;
+  while (x !== b.x || y !== b.y) {
+    pathCellSet.add(x + ',' + y);
+    x += dx; y += dy;
+  }
+  pathCellSet.add(b.x + ',' + b.y);
+}
+
+function cellToWorld(cx, cy) {
+  return {
+    x: MAP_OFFSET_X + cx * CELL + CELL/2,
+    z: MAP_OFFSET_Z + cy * CELL + CELL/2
+  };
+}
+
+const pathWorld = pathCells.map(p => {
+  const w = cellToWorld(p.x, p.y);
+  return new THREE.Vector3(w.x, 0.5, w.z);
+});
+
+// ============== GROUND WITH PROCEDURAL TEXTURE ==============
+function createGroundTexture() {
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const c = canvas.getContext('2d');
+  
+  // Base grass
+  const grad = c.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+  grad.addColorStop(0, '#1e3a2e');
+  grad.addColorStop(1, '#0f2418');
+  c.fillStyle = grad;
+  c.fillRect(0, 0, size, size);
+  
+  // Noise
+  for (let i = 0; i < 8000; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const r = Math.random() * 3 + 0.5;
+    const g = 40 + Math.random() * 80;
+    c.fillStyle = `rgba(${g/2}, ${g}, ${g/2.5}, ${Math.random() * 0.4})`;
+    c.beginPath();
+    c.arc(x, y, r, 0, Math.PI * 2);
+    c.fill();
+  }
+  
+  // Little grass blades
+  for (let i = 0; i < 2000; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const h = Math.random() * 6 + 2;
+    c.strokeStyle = `rgba(60, ${100 + Math.random() * 60}, 60, ${Math.random() * 0.5})`;
+    c.lineWidth = Math.random() * 1.5 + 0.5;
+    c.beginPath();
+    c.moveTo(x, y);
+    c.lineTo(x + (Math.random() - 0.5) * 3, y - h);
+    c.stroke();
+  }
+  
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(4, 3);
+  tex.anisotropy = 16;
+  return tex;
+}
+
+// ============== GROUND WITH DISPLACEMENT ==============
+const groundGeo = new THREE.PlaneGeometry(GRID_W * CELL, GRID_H * CELL, 60, 45);
+// Лёгкий рельеф
+const posAttr = groundGeo.attributes.position;
+for (let i = 0; i < posAttr.count; i++) {
+  const x = posAttr.getX(i);
+  const y = posAttr.getY(i);
+  const d = Math.hypot(x, y);
+  // Небольшие холмы на краях
+  const edgeFactor = Math.max(0, (d - 18) / 15);
+  const noise = Math.sin(x * 0.3) * Math.cos(y * 0.4) * 0.15 + Math.sin(x * 0.7 + y * 0.5) * 0.1;
+  posAttr.setZ(i, noise + edgeFactor * 0.8);
+}
+groundGeo.computeVertexNormals();
+
+const groundMat = new THREE.MeshStandardMaterial({
+  map: createGroundTexture(),
+  roughness: 0.95,
+  metalness: 0.05,
+  color: 0xffffff
+});
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// ============== ROAD (with glow edges) ==============
+function createRoadTexture() {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const c = canvas.getContext('2d');
+  
+  // Base dirt
+  c.fillStyle = '#5a4a30';
+  c.fillRect(0, 0, size, size);
+  
+  // Noise & rocks
+  for (let i = 0; i < 3000; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const r = Math.random() * 4 + 1;
+    const g = 60 + Math.random() * 70;
+    c.fillStyle = `rgba(${g + 20}, ${g}, ${g - 20}, ${Math.random() * 0.6})`;
+    c.beginPath();
+    c.arc(x, y, r, 0, Math.PI * 2);
+    c.fill();
+  }
+  
+  // Cracks
+  for (let i = 0; i < 30; i++) {
+    c.strokeStyle = `rgba(30, 20, 10, ${Math.random() * 0.4 + 0.2})`;
+    c.lineWidth = Math.random() * 2 + 0.5;
+    c.beginPath();
+    let x = Math.random() * size;
+    let y = Math.random() * size;
+    c.moveTo(x, y);
+    for (let j = 0; j < 8; j++) {
+      x += (Math.random() - 0.5) * 30;
+      y += (Math.random() - 0.5) * 30;
+      c.lineTo(x, y);
+    }
+    c.stroke();
+  }
+  
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 16;
+  return tex;
+}
+
+const roadTex = createRoadTexture();
+const roadGeo = new THREE.BoxGeometry(CELL * 0.98, 0.2, CELL * 0.98);
+const roadMat = new THREE.MeshStandardMaterial({ 
+  map: roadTex, 
+  roughness: 1,
+  metalness: 0.05,
+  color: 0xbbaa88
+});
+for (const key of pathCellSet) {
+  const [cx, cy] = key.split(',').map(Number);
+  const w = cellToWorld(cx, cy);
+  const tile = new THREE.Mesh(roadGeo, roadMat);
+  tile.position.set(w.x, 0.1, w.z);
+  tile.receiveShadow = true;
+  scene.add(tile);
+  
+  // Glow border
+  const edgeMat = new THREE.MeshBasicMaterial({ 
+    color: 0xff8844, 
+    transparent: true, 
+    opacity: 0.15,
+    blending: THREE.AdditiveBlending 
+  });
+  const edge = new THREE.Mesh(new THREE.RingGeometry(CELL * 0.5, CELL * 0.58, 4), edgeMat);
+  edge.rotation.x = -Math.PI / 2;
+  edge.rotation.z = Math.PI / 4;
+  edge.position.set(w.x, 0.2, w.z);
+  scene.add(edge);
+}
+
+// ============== DECORATIONS ==============
+function createTree(x, z, scale = 1) {
+  const group = new THREE.Group();
+  
+  // Trunk
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3a2010, roughness: 0.9 });
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.35, 1.8 * scale, 8), trunkMat);
+  trunk.position.y = 0.9 * scale;
+  trunk.castShadow = true;
+  group.add(trunk);
+  
+  // Foliage (multiple spheres)
+  const leafMat = new THREE.MeshStandardMaterial({ 
+    color: new THREE.Color().setHSL(0.28 + Math.random() * 0.08, 0.55, 0.25 + Math.random() * 0.15),
+    roughness: 0.9,
+    flatShading: true
+  });
+  
+  for (let i = 0; i < 4; i++) {
+    const size = (0.9 + Math.random() * 0.5) * scale;
+    const leaf = new THREE.Mesh(new THREE.IcosahedronGeometry(size, 0), leafMat);
+    leaf.position.set(
+      (Math.random() - 0.5) * 0.8 * scale,
+      1.8 * scale + Math.random() * 0.8 * scale,
+      (Math.random() - 0.5) * 0.8 * scale
+    );
+    leaf.castShadow = true;
+    group.add(leaf);
+  }
+  
+  group.position.set(x, 0, z);
+  return group;
+}
+
+function createRock(x, z, scale = 1) {
+  const geo = new THREE.DodecahedronGeometry(scale, 0);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    pos.setX(i, pos.getX(i) * (0.8 + Math.random() * 0.4));
+    pos.setY(i, pos.getY(i) * (0.7 + Math.random() * 0.3));
+    pos.setZ(i, pos.getZ(i) * (0.8 + Math.random() * 0.4));
+  }
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({ 
+    color: 0x554a44, 
+    roughness: 0.95,
+    flatShading: true
+  });
+  const rock = new THREE.Mesh(geo, mat);
+  rock.position.set(x, scale * 0.4, z);
+  rock.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+  rock.castShadow = true;
+  rock.receiveShadow = true;
+  return rock;
+}
+
+// Деревья и камни по периметру (не на дороге и не на поле)
+for (let i = 0; i < 40; i++) {
+  const angle = Math.random() * Math.PI * 2;
+  const r = 22 + Math.random() * 18;
+  const x = Math.cos(angle) * r;
+  const z = Math.sin(angle) * r;
+  if (Math.random() > 0.4) {
+    scene.add(createTree(x, z, 0.8 + Math.random() * 0.8));
+  } else {
+    scene.add(createRock(x, z, 0.4 + Math.random() * 0.6));
+  }
+}
+
+// ============== CRYSTALS (glowing decorations) ==============
+function createCrystal(x, z, color) {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({
+    color, emissive: color, emissiveIntensity: 1.2,
+    roughness: 0.2, metalness: 0.8, transparent: true, opacity: 0.9
+  });
+  for (let i = 0; i < 3; i++) {
+    const h = 0.6 + Math.random() * 0.8;
+    const crystal = new THREE.Mesh(new THREE.ConeGeometry(0.2, h, 5), mat);
+    crystal.position.set(
+      (Math.random() - 0.5) * 0.8,
+      h / 2,
+      (Math.random() - 0.5) * 0.8
+    );
+    crystal.rotation.set(
+      (Math.random() - 0.5) * 0.4,
+      Math.random() * Math.PI,
+      (Math.random() - 0.5) * 0.4
+    );
+    crystal.castShadow = true;
+    group.add(crystal);
+  }
+  // Point light
+  const light = new THREE.PointLight(color, 1.2, 6);
+  light.position.y = 1;
+  group.add(light);
+  group.position.set(x, 0, z);
+  return group;
+}
+
+// Несколько кристаллов по углам карты
+const crystalColors = [0x00ffff, 0xff00ff, 0xffff00, 0x00ff88, 0xff4488];
+const crystalPositions = [
+  [-26, -18], [26, -18], [-26, 18], [26, 18],
+  [-30, 0], [30, 0]
+];
+crystalPositions.forEach((p, i) => {
+  scene.add(createCrystal(p[0], p[1], crystalColors[i % crystalColors.length]));
+});
+
+// ============== HOVER & RANGE ==============
+const hoverGeo = new THREE.PlaneGeometry(CELL * 0.95, CELL * 0.95);
+const hoverMat = new THREE.MeshBasicMaterial({ 
+  color: 0x00ff00, transparent: true, opacity: 0.35, side: THREE.DoubleSide,
+  blending: THREE.AdditiveBlending, depthWrite: false
+});
+const hoverMesh = new THREE.Mesh(hoverGeo, hoverMat);
+hoverMesh.rotation.x = -Math.PI / 2;
+hoverMesh.position.y = 0.25;
+hoverMesh.visible = false;
+scene.add(hoverMesh);
+
+// Кольцо радиуса с пульсирующей текстурой
+const rangeRingGeo = new THREE.RingGeometry(0.98, 1.0, 96);
+const rangeRingMat = new THREE.MeshBasicMaterial({ 
+  color: 0x00ff00, transparent: true, opacity: 0.7, side: THREE.DoubleSide,
+  blending: THREE.AdditiveBlending, depthWrite: false
+});
+const rangeRing = new THREE.Mesh(rangeRingGeo, rangeRingMat);
+rangeRing.rotation.x = -Math.PI / 2;
+rangeRing.position.y = 0.22;
+rangeRing.visible = false;
+scene.add(rangeRing);
+
+// ============== CAMERA CONTROL ==============
+const camState = {
+  angle: Math.PI / 4,
+  distance: 28,
+  height: 22,
+  targetX: 0,
+  targetZ: 0,
+  mode: 0,
+  isDragging: false,
+  lastX: 0,
+  lastY: 0
+};
+
+function updateCamera() {
+  const x = camState.targetX + Math.cos(camState.angle) * camState.distance;
+  const z = camState.targetZ + Math.sin(camState.angle) * camState.distance;
+  camera.position.set(x, camState.height, z);
+  camera.lookAt(camState.targetX, 0, camState.targetZ);
+}
+updateCamera();
+
+// ============== TOWER TYPES ==============
+const TOWER_TYPES = {
+  archer: { name: 'Лучник', cost: 50, range: 7, damage: 12, fireRate: 0.65, color: 0x4CAF50, projColor: 0x8BC34A, projSpeed: 18, splash: 0, buildType: 'box', accent: 0x88ff88 },
+  cannon: { name: 'Пушка', cost: 100, range: 6.5, damage: 35, fireRate: 1.5, color: 0xFF5722, projColor: 0xFFC107, projSpeed: 12, splash: 2.2, buildType: 'cylinder', accent: 0xffaa44 },
+  frost:  { name: 'Ледяная', cost: 75, range: 6, damage: 6, fireRate: 0.9, color: 0x03A9F4, projColor: 0x81D4FA, projSpeed: 16, splash: 0, slow: 0.5, slowDur: 1.5, buildType: 'cone', accent: 0x88ddff },
+  fire:   { name: 'Огненная', cost: 120, range: 7.5, damage: 50, fireRate: 1.2, color: 0xF44336, projColor: 0xFF5722, projSpeed: 14, splash: 1.5, buildType: 'box', accent: 0xff8844 }
+};
+
+// ============== STATE ==============
+let gold = 200;
+let lives = 20;
+let wave = 0;
+let enemies = [];
+let towers = [];
+let projectiles = [];
+let particles = [];
+let selectedType = null;
+let selectedTower = null;
+let hoverCellData = null;
+let gameActive = true;
+let speedMultiplier = 1;
+let waveInProgress = false;
+let spawnQueue = [];
+let spawnTimer = 0;
+let clock = new THREE.Clock();
+
+// ============== TOWER 3D MODEL (detailed) ==============
+function createTowerMesh(type, color) {
+  const group = new THREE.Group();
+  const accent = TOWER_TYPES[type].accent;
+  
+  // Каменное основание
+  const baseGeo = new THREE.CylinderGeometry(CELL * 0.44, CELL * 0.48, 0.5, 10);
+  const baseMat = new THREE.MeshStandardMaterial({ 
+    color: 0x3a3a4e, roughness: 0.85, metalness: 0.2,
+    flatShading: true
+  });
+  const base = new THREE.Mesh(baseGeo, baseMat);
+  base.position.y = 0.25;
+  base.castShadow = true;
+  base.receiveShadow = true;
+  group.add(base);
+  
+  // Обрамление основания
+  const rimGeo = new THREE.TorusGeometry(CELL * 0.42, 0.08, 8, 24);
+  const rimMat = new THREE.MeshStandardMaterial({ 
+    color: accent, metalness: 0.9, roughness: 0.2, 
+    emissive: accent, emissiveIntensity: 0.5
+  });
+  const rim = new THREE.Mesh(rimGeo, rimMat);
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = 0.5;
+  group.add(rim);
+  
+  // Основная часть с эмиссией
+  const bodyMat = new THREE.MeshStandardMaterial({ 
+    color: color, roughness: 0.35, metalness: 0.7, 
+    emissive: color, emissiveIntensity: 0.25,
+    flatShading: true
+  });
+  
+  let body;
+  if (TOWER_TYPES[type].buildType === 'box') {
+    body = new THREE.Mesh(new THREE.BoxGeometry(1.7, 1.5, 1.7, 2, 2, 2), bodyMat);
+    body.position.y = 1.15;
+  } else if (TOWER_TYPES[type].buildType === 'cylinder') {
+    body = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.05, 1.5, 12), bodyMat);
+    body.position.y = 1.15;
+  } else {
+    body = new THREE.Mesh(new THREE.ConeGeometry(1, 1.7, 12), bodyMat);
+    body.position.y = 1.25;
+  }
+  body.castShadow = true;
+  group.add(body);
+  
+  // Декоративные полосы на корпусе
+  const stripeGeo = new THREE.TorusGeometry(0.9, 0.06, 6, 20);
+  const stripeMat = new THREE.MeshStandardMaterial({ 
+    color: accent, metalness: 1, roughness: 0.15,
+    emissive: accent, emissiveIntensity: 1.2
+  });
+  const stripe1 = new THREE.Mesh(stripeGeo, stripeMat);
+  stripe1.rotation.x = Math.PI / 2;
+  stripe1.position.y = 0.8;
+  group.add(stripe1);
+  const stripe2 = stripe1.clone();
+  stripe2.position.y = 1.5;
+  group.add(stripe2);
+  
+  // Верхушка (турель) - многогранник
+  const turretMat = new THREE.MeshStandardMaterial({ 
+    color: 0x1a1a2e, roughness: 0.3, metalness: 0.9,
+    emissive: color, emissiveIntensity: 0.15
+  });
+  const turret = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 0), turretMat);
+  turret.position.y = 2.15;
+  turret.castShadow = true;
+  group.add(turret);
+  
+  // Энергетическое ядро (glowing)
+  const coreMat = new THREE.MeshBasicMaterial({ 
+    color: accent, transparent: true, opacity: 0.95,
+    blending: THREE.AdditiveBlending
+  });
+  const core = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 8), coreMat);
+  core.position.y = 2.15;
+  group.add(core);
+  
+  // Свет от ядра
+  const coreLight = new THREE.PointLight(color, 1.5, 5);
+  coreLight.position.y = 2.15;
+  group.add(coreLight);
+  
+  // Ствол
+  const barrelMat = new THREE.MeshStandardMaterial({ 
+    color: 0x111122, roughness: 0.25, metalness: 0.95
+  });
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 1.5, 10), barrelMat);
+  barrel.rotation.z = Math.PI / 2;
+  barrel.position.set(0.75, 2.15, 0);
+  barrel.castShadow = true;
+  group.add(barrel);
+  
+  // Кольцо на стволе
+  const barrelRing = new THREE.Mesh(
+    new THREE.TorusGeometry(0.22, 0.05, 6, 16),
+    new THREE.MeshStandardMaterial({ color: accent, metalness: 1, roughness: 0.15, emissive: accent, emissiveIntensity: 1 })
+  );
+  barrelRing.rotation.y = Math.PI / 2;
+  barrelRing.position.set(1.3, 2.15, 0);
+  group.add(barrelRing);
+  
+  group.userData = { barrel, turret, core, coreLight, rim };
+  return group;
+}
+
+// ============== TOWER CLASS ==============
+class Tower {
+  constructor(cx, cy, type) {
+    this.cx = cx; this.cy = cy;
+    const w = cellToWorld(cx, cy);
+    this.position = new THREE.Vector3(w.x, 0, w.z);
+    this.type = type;
+    this.level = 1;
+    this.cooldown = 0;
+    this.updateStats();
+    
+    this.mesh = createTowerMesh(type, this.color);
+    this.mesh.position.copy(this.position);
+    // Анимация появления
+    this.mesh.scale.set(0, 0, 0);
+    this.spawnAnim = 0;
+    scene.add(this.mesh);
+    
+    this.updateLevelIndicator();
+  }
+  
+  updateStats() {
+    const base = TOWER_TYPES[this.type];
+    const lvlMult = 1 + (this.level - 1) * 0.4;
+    this.range = base.range + (this.level - 1) * 0.7;
+    this.damage = base.damage * lvlMult;
+    this.fireRate = base.fireRate * (1 - (this.level - 1) * 0.1);
+    this.splash = base.splash;
+    this.color = base.color;
+    this.projColor = base.projColor;
+    this.projSpeed = base.projSpeed;
+    this.slow = base.slow;
+    this.slowDur = base.slowDur;
+    this.upgradeCost = Math.round(base.cost * 0.8 * this.level);
+    this.sellPrice = Math.round(base.cost * 0.6 * this.level);
+  }
+  
+  updateLevelIndicator() {
+    if (this.levelStars) {
+      this.levelStars.forEach(s => this.mesh.remove(s));
+    }
+    this.levelStars = [];
+    for (let i = 0; i < this.level; i++) {
+      const starGeo = new THREE.OctahedronGeometry(0.14, 0);
+      const starMat = new THREE.MeshStandardMaterial({ 
+        color: 0xffd700, emissive: 0xffd700, emissiveIntensity: 1.5,
+        metalness: 1, roughness: 0.1
+      });
+      const star = new THREE.Mesh(starGeo, starMat);
+      const angle = (i / Math.max(this.level, 1)) * Math.PI * 2;
+      star.position.set(Math.cos(angle) * 0.85, 3.0, Math.sin(angle) * 0.85);
+      this.mesh.add(star);
+      this.levelStars.push(star);
+    }
+  }
+  
+  findTarget() {
+    let best = null;
+    let bestProgress = -1;
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      const d = e.position.distanceTo(this.position);
+      if (d <= this.range) {
+        if (e.progress > bestProgress) {
+          best = e;
+          bestProgress = e.progress;
+        }
+      }
+    }
+    return best;
+  }
+  
+  update(dt) {
+    // Анимация появления
+    if (this.spawnAnim < 1) {
+      this.spawnAnim = Math.min(1, this.spawnAnim + dt * 4);
+      const s = 1 - Math.pow(1 - this.spawnAnim, 3); // ease out cubic
+      this.mesh.scale.set(s, s, s);
+    }
+    
+    if (this.cooldown > 0) this.cooldown -= dt;
+    
+    // Вращение ядра
+    this.mesh.userData.core.rotation.y += dt * 3;
+    this.mesh.userData.core.rotation.x += dt * 2;
+    
+    // Пульсация света
+    const pulse = 1 + Math.sin(performance.now() * 0.004) * 0.3;
+    this.mesh.userData.coreLight.intensity = 1.5 * pulse;
+    
+    const target = this.findTarget();
+    if (target) {
+      const dx = target.position.x - this.position.x;
+      const dz = target.position.z - this.position.z;
+      const targetAngle = Math.atan2(dz, dx);
+      
+      const turret = this.mesh.userData.turret;
+      let diff = targetAngle - turret.rotation.y;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      turret.rotation.y += diff * dt * 10;
+      
+      const barrel = this.mesh.userData.barrel;
+      const barrelRing = this.mesh.children.find(c => c.geometry?.type === 'TorusGeometry' && c.position.x > 1);
+      
+      if (this.cooldown <= 0) {
+        this.shoot(target);
+        this.cooldown = this.fireRate;
+      }
+    }
+  }
+  
+  shoot(target) {
+    const startPos = this.position.clone();
+    startPos.y = 2.15;
+    
+    const turretRot = this.mesh.userData.turret.rotation.y;
+    startPos.x += Math.cos(turretRot) * 1.5;
+    startPos.z += Math.sin(turretRot) * 1.5;
+    
+    const projGeo = new THREE.SphereGeometry(0.28, 12, 10);
+    const projMat = new THREE.MeshBasicMaterial({ 
+      color: this.projColor,
+      blending: THREE.AdditiveBlending
+    });
+    const projMesh = new THREE.Mesh(projGeo, projMat);
+    projMesh.position.copy(startPos);
+    scene.add(projMesh);
+    
+    // Свечение
+    const glow = new THREE.Mesh(
+      new THREE.SphereGeometry(0.5, 10, 8),
+      new THREE.MeshBasicMaterial({ 
+        color: this.projColor, transparent: true, opacity: 0.35,
+        blending: THREE.AdditiveBlending
+      })
+    );
+    projMesh.add(glow);
+    
+    const light = new THREE.PointLight(this.projColor, 2, 4);
+    projMesh.add(light);
+    
+    // Muzzle flash
+    for (let i = 0; i < 8; i++) {
+      const p = new THREE.Mesh(
+        new THREE.SphereGeometry(0.1, 6, 4),
+        new THREE.MeshBasicMaterial({ color: this.projColor, blending: THREE.AdditiveBlending })
+      );
+      p.position.copy(startPos);
+      scene.add(p);
+      particles.push({
+        mesh: p,
+        vel: new THREE.Vector3(
+          Math.cos(turretRot) * (3 + Math.random() * 3) + (Math.random() - 0.5) * 2,
+          (Math.random() - 0.5) * 2,
+          Math.sin(turretRot) * (3 + Math.random() * 3) + (Math.random() - 0.5) * 2
+        ),
+        life: 0.3, maxLife: 0.3, gravity: false, noGrav: true
+      });
+    }
+    
+    projectiles.push({
+      mesh: projMesh,
+      position: startPos.clone(),
+      target: target,
+      speed: this.projSpeed,
+      damage: this.damage,
+      splash: this.splash,
+      slow: this.slow,
+      slowDur: this.slowDur,
+      alive: true,
+      life: 3,
+      color: this.projColor
+    });
+  }
+  
+  dispose() {
+    scene.remove(this.mesh);
+    this.mesh.traverse(obj => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+        else obj.material.dispose();
+      }
+    });
+  }
+}
+
+// ============== ENEMY ==============
+class Enemy {
+  constructor(type, waveNum) {
+    this.type = type;
+    this.alive = true;
+    this.pathIndex = 0;
+    this.segmentT = 0;
+    this.slowTimer = 0;
+    this.slowFactor = 1;
+    this.progress = 0;
+    this.wobbleOffset = Math.random() * Math.PI * 2;
+    
+    const scaling = 1 + waveNum * 0.18;
+    if (type === 'fast') {
+      this.maxHp = 45 * scaling; this.speed = 4.5; this.color = 0xFFEB3B; this.size = 0.55; this.reward = 12;
+    } else if (type === 'tank') {
+      this.maxHp = 140 * scaling; this.speed = 1.5; this.color = 0x795548; this.size = 0.85; this.reward = 22;
+    } else if (type === 'boss') {
+      this.maxHp = 700 * scaling; this.speed = 1.1; this.color = 0x9C27B0; this.size = 1.3; this.reward = 120;
+    } else {
+      this.maxHp = 65 * scaling; this.speed = 2.6; this.color = 0xE91E63; this.size = 0.65; this.reward = 11;
+    }
+    this.hp = this.maxHp;
+    
+    // === Модель врага ===
+    const group = new THREE.Group();
+    
+    // Тело (икосаэдр для стилизации)
+    const bodyMat = new THREE.MeshStandardMaterial({ 
+      color: this.color, 
+      roughness: 0.4, 
+      metalness: 0.5,
+      emissive: this.color, 
+      emissiveIntensity: 0.4,
+      flatShading: true
+    });
+    const body = new THREE.Mesh(new THREE.IcosahedronGeometry(this.size, 1), bodyMat);
+    body.castShadow = true;
+    group.add(body);
+    
+    // Броня (торусы)
+    const armorMat = new THREE.MeshStandardMaterial({ 
+      color: 0x222233, metalness: 0.9, roughness: 0.2,
+      emissive: this.color, emissiveIntensity: 0.2
+    });
+    for (let i = 0; i < 2; i++) {
+      const armor = new THREE.Mesh(new THREE.TorusGeometry(this.size * 0.95, 0.06, 6, 16), armorMat);
+      armor.rotation.x = Math.PI / 2 + i * 0.5;
+      armor.rotation.y = i * 0.7;
+      group.add(armor);
+    }
+    
+    // Глаза (светящиеся)
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff, blending: THREE.AdditiveBlending });
+    const eyeGeo = new THREE.SphereGeometry(this.size * 0.22, 10, 8);
+    const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+    const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
+    eyeL.position.set(-this.size * 0.4, this.size * 0.25, this.size * 0.85);
+    eyeR.position.set(this.size * 0.4, this.size * 0.25, this.size * 0.85);
+    group.add(eyeL); group.add(eyeR);
+    
+    const pupilMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    const pupilGeo = new THREE.SphereGeometry(this.size * 0.1, 6, 5);
+    const pupilL = new THREE.Mesh(pupilGeo, pupilMat);
+    const pupilR = new THREE.Mesh(pupilGeo, pupilMat);
+    pupilL.position.set(-this.size * 0.4, this.size * 0.25, this.size * 1.0);
+    pupilR.position.set(this.size * 0.4, this.size * 0.25, this.size * 1.0);
+    group.add(pupilL); group.add(pupilR);
+    
+    // Свечение вокруг глаз
+    const eyeGlow = new THREE.PointLight(this.color, 1.5, 2);
+    eyeGlow.position.set(0, this.size * 0.25, this.size * 0.85);
+    group.add(eyeGlow);
+    
+    this.mesh = group;
+    
+    // HP бар (3D спрайты)
+    const hpBarGroup = new THREE.Group();
+    const barBg = new THREE.Mesh(
+      new THREE.PlaneGeometry(this.size * 2.3, 0.22),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthTest: false })
+    );
+    barBg.renderOrder = 999;
+    hpBarGroup.add(barBg);
+    
+    const barFill = new THREE.Mesh(
+      new THREE.PlaneGeometry(this.size * 2.3, 0.22),
+      new THREE.MeshBasicMaterial({ color: 0x4CAF50, side: THREE.DoubleSide, depthTest: false })
+    );
+    barFill.renderOrder = 1000;
+    hpBarGroup.add(barFill);
+    
+    // Рамка HP бара
+    const barFrame = new THREE.Mesh(
+      new THREE.PlaneGeometry(this.size * 2.4, 0.32),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthTest: false })
+    );
+    barFrame.renderOrder = 998;
+    hpBarGroup.add(barFrame);
+    
+    this.hpBarGroup = hpBarGroup;
+    this.barFill = barFill;
+    scene.add(hpBarGroup);
+    
+    // Индикатор замедления
+    this.slowRing = new THREE.Mesh(
+      new THREE.RingGeometry(this.size * 1.2, this.size * 1.4, 32),
+      new THREE.MeshBasicMaterial({ color: 0x03A9F4, transparent: true, opacity: 0.7, side: THREE.DoubleSide, blending: THREE.AdditiveBlending })
+    );
+    this.slowRing.rotation.x = -Math.PI / 2;
+    this.slowRing.visible = false;
+    scene.add(this.slowRing);
+    
+    this.position = pathWorld[0].clone();
+    this.mesh.position.copy(this.position);
+  }
+  
+  update(dt) {
+    if (!this.alive) return true;
+    
+    if (this.slowTimer > 0) {
+      this.slowTimer -= dt;
+      this.slowFactor = 0.5;
+    } else {
+      this.slowFactor = 1;
+    }
+    
+    if (this.pathIndex >= pathWorld.length - 1) return false;
+    
+    const target = pathWorld[this.pathIndex + 1];
+    const dx = target.x - this.position.x;
+    const dz = target.z - this.position.z;
+    const dist = Math.hypot(dx, dz);
+    const step = this.speed * this.slowFactor * dt;
+    
+    if (dist <= step) {
+      this.position.x = target.x;
+      this.position.z = target.z;
+      this.pathIndex++;
+      this.segmentT = 0;
+      if (this.pathIndex >= pathWorld.length - 1) return false;
+    } else {
+      this.position.x += dx / dist * step;
+      this.position.z += dz / dist * step;
+      this.segmentT += step;
+    }
+    
+    this.progress = this.pathIndex * 100 + this.segmentT;
+    this.mesh.position.set(
+      this.position.x,
+      this.position.y + Math.sin(performance.now() * 0.005 + this.wobbleOffset) * 0.12,
+      this.position.z
+    );
+    
+    // Вращение
+    this.mesh.rotation.y += dt * 1.5;
+    if (this.mesh.children[0]) {
+      this.mesh.children[0].rotation.x += dt * 0.8;
+      this.mesh.children[0].rotation.z += dt * 0.5;
+    }
+    
+    // HP бар
+    const barY = this.mesh.position.y + this.size + 0.8;
+    this.hpBarGroup.position.set(this.position.x, barY, this.position.z);
+    this.hpBarGroup.lookAt(camera.position);
+    
+    const ratio = Math.max(0, this.hp / this.maxHp);
+    this.barFill.scale.x = ratio;
+    this.barFill.position.x = -(1 - ratio) * this.size * 1.15;
+    
+    const barColor = ratio > 0.5 ? 0x4CAF50 : ratio > 0.25 ? 0xFFC107 : 0xF44336;
+    this.barFill.material.color.setHex(barColor);
+    
+    // Slow indicator
+    this.slowRing.visible = this.slowTimer > 0;
+    if (this.slowRing.visible) {
+      this.slowRing.position.set(this.position.x, 0.3, this.position.z);
+      this.slowRing.material.opacity = 0.5 + Math.sin(performance.now() * 0.01) * 0.2;
+    }
+    
+    return true;
+  }
+  
+  damage(amount) {
+    this.hp -= amount;
+    if (this.hp <= 0) {
+      this.kill();
+      return true;
+    }
+    return false;
+  }
+  
+  kill() {
+    this.alive = false;
+    // Взрыв с искрами
+    const particleCount = this.type === 'boss' ? 40 : 20;
+    for (let i = 0; i < particleCount; i++) {
+      const p = new THREE.Mesh(
+        new THREE.SphereGeometry(0.12 + Math.random() * 0.1, 6, 4),
+        new THREE.MeshBasicMaterial({ 
+          color: Math.random() > 0.5 ? this.color : 0xffdd44,
+          blending: THREE.AdditiveBlending
+        })
+      );
+      p.position.copy(this.position);
+      p.position.y = 0.6;
+      scene.add(p);
+      particles.push({
+        mesh: p,
+        vel: new THREE.Vector3(
+          (Math.random() - 0.5) * 10,
+          Math.random() * 8 + 2,
+          (Math.random() - 0.5) * 10
+        ),
+        life: 1.2, maxLife: 1.2, gravity: true
+      });
+    }
+    
+    // Вспышка света
+    const flash = new THREE.PointLight(0xffffff, 8, 8);
+    flash.position.copy(this.position);
+    flash.position.y = 1;
+    scene.add(flash);
+    let flashLife = 0.4;
+    const fadeFlash = () => {
+      flashLife -= 0.03;
+      if (flashLife <= 0) { scene.remove(flash); return; }
+      flash.intensity = 8 * (flashLife / 0.4);
+      requestAnimationFrame(fadeFlash);
+    };
+    fadeFlash();
+  }
+  
+  dispose() {
+    scene.remove(this.mesh);
+    scene.remove(this.hpBarGroup);
+    scene.remove(this.slowRing);
+    this.mesh.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) o.material.dispose();
+    });
+    this.hpBarGroup.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) o.material.dispose();
+    });
+    this.slowRing.geometry.dispose();
+    this.slowRing.material.dispose();
+  }
+}
+
+// ============== PROJECTILES UPDATE ==============
+function updateProjectiles(dt) {
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
+    p.life -= dt;
+    
+    if (!p.target || !p.target.alive || p.life <= 0) {
+      scene.remove(p.mesh);
+      p.mesh.traverse(o => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) o.material.dispose();
+      });
+      projectiles.splice(i, 1);
+      continue;
+    }
+    
+    const targetPos = p.target.mesh.position.clone();
+    const toTarget = targetPos.clone().sub(p.position);
+    const dist = toTarget.length();
+    
+    if (dist < 0.6) {
+      hitTarget(p);
+      scene.remove(p.mesh);
+      p.mesh.traverse(o => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) o.material.dispose();
+      });
+      projectiles.splice(i, 1);
+      continue;
+    }
+    
+    const dir = toTarget.normalize();
+    p.position.addScaledVector(dir, p.speed * dt);
+    p.mesh.position.copy(p.position);
+    
+    // Trail
+    if (Math.random() > 0.5) {
+      const trail = new THREE.Mesh(
+        new THREE.SphereGeometry(0.15, 6, 4),
+        new THREE.MeshBasicMaterial({ 
+          color: p.color, transparent: true, opacity: 0.6,
+          blending: THREE.AdditiveBlending
+        })
+      );
+      trail.position.copy(p.position);
+      scene.add(trail);
+      particles.push({
+        mesh: trail,
+        vel: new THREE.Vector3((Math.random()-0.5)*0.5, (Math.random()-0.5)*0.5, (Math.random()-0.5)*0.5),
+        life: 0.3, maxLife: 0.3, gravity: false, noGrav: true
+      });
+    }
+  }
+}
+
+function hitTarget(p) {
+  const impactPos = p.target.position.clone();
+  impactPos.y = 0.6;
+  
+  if (p.splash > 0) {
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      const d = e.position.distanceTo(impactPos);
+      if (d <= p.splash) {
+        const dmg = p.damage * (1 - d / p.splash * 0.5);
+        if (e.damage(dmg)) gold += e.reward;
+      }
+    }
+    // Большой взрыв
+    for (let i = 0; i < 30; i++) {
+      const part = new THREE.Mesh(
+        new THREE.SphereGeometry(0.15 + Math.random() * 0.15, 6, 4),
+        new THREE.MeshBasicMaterial({ 
+          color: Math.random() > 0.5 ? 0xFFC107 : 0xFF5722,
+          blending: THREE.AdditiveBlending
+        })
+      );
+      part.position.copy(impactPos);
+      scene.add(part);
+      particles.push({
+        mesh: part,
+        vel: new THREE.Vector3(
+          (Math.random() - 0.5) * 12,
+          Math.random() * 8 + 2,
+          (Math.random() - 0.5) * 12
+        ),
+        life: 0.9, maxLife: 0.9, gravity: true
+      });
+    }
+    // Вспышка
+    const flash = new THREE.PointLight(0xff8844, 6, 6);
+    flash.position.copy(impactPos);
+    scene.add(flash);
+    let flashLife = 0.3;
+    const fade = () => {
+      flashLife -= 0.03;
+      if (flashLife <= 0) { scene.remove(flash); return; }
+      flash.intensity = 6 * (flashLife / 0.3);
+      requestAnimationFrame(fade);
+    };
+    fade();
+  } else {
+    if (p.target.damage(p.damage)) gold += p.target.reward;
+    for (let i = 0; i < 8; i++) {
+      const part = new THREE.Mesh(
+        new THREE.SphereGeometry(0.08, 4, 3),
+        new THREE.MeshBasicMaterial({ 
+          color: p.color,
+          blending: THREE.AdditiveBlending
+        })
+      );
+      part.position.copy(impactPos);
+      scene.add(part);
+      particles.push({
+        mesh: part,
+        vel: new THREE.Vector3(
+          (Math.random() - 0.5) * 6,
+          Math.random() * 5 + 1,
+          (Math.random() - 0.5) * 6
+        ),
+        life: 0.5, maxLife: 0.5, gravity: true
+      });
+    }
+  }
+  
+  if (p.slow) {
+    p.target.slowTimer = Math.max(p.target.slowTimer, p.slowDur);
+  }
+}
+
+// ============== PARTICLES ==============
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= dt;
+    if (p.life <= 0) {
+      scene.remove(p.mesh);
+      p.mesh.geometry.dispose();
+      p.mesh.material.dispose();
+      particles.splice(i, 1);
+      continue;
+    }
+    if (!p.noGrav) p.vel.y -= 15 * dt;
+    p.mesh.position.addScaledVector(p.vel, dt);
+    p.mesh.material.opacity = p.life / p.maxLife;
+    p.mesh.material.transparent = true;
+  }
+}
+
+// ============== GAME LOOP ==============
+function animate() {
+  requestAnimationFrame(animate);
+  
+  const rawDt = Math.min(clock.getDelta(), 0.05);
+  
+  // Анимации фона (всегда)
+  starfield.rotation.y += rawDt * 0.005;
+  
+  // Пульсация кристаллов (через время)
+  scene.traverse(obj => {
+    if (obj.isPointLight && obj.parent && obj.parent.children.length > 1 && obj.parent.children[0].geometry?.type === 'ConeGeometry') {
+      obj.intensity = 1.2 + Math.sin(performance.now() * 0.003 + obj.position.x) * 0.4;
+    }
+  });
+  
+  if (!gameActive) {
+    composer.render();
+    return;
+  }
+  
+  for (let s = 0; s < speedMultiplier; s++) {
+    const dt = rawDt;
+    
+    if (spawnQueue.length > 0) {
+      spawnTimer -= dt;
+      if (spawnTimer <= 0) {
+        const data = spawnQueue.shift();
+        enemies.push(new Enemy(data.type, wave));
+        spawnTimer = data.delay;
+      }
+    }
+    
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      const e = enemies[i];
+      if (!e.alive) {
+        e.dispose();
+        enemies.splice(i, 1);
+        continue;
+      }
+      const still = e.update(dt);
+      if (!still) {
+        lives--;
+        e.alive = false;
+        if (lives <= 0) endGame();
+      }
+    }
+    
+    towers.forEach(t => t.update(dt));
+    updateProjectiles(dt);
+    updateParticles(dt);
+    
+    if (waveInProgress && enemies.length === 0 && spawnQueue.length === 0) {
+      waveInProgress = false;
+      gold += 30 + wave * 10;
+    }
+  }
+  
+  // Плавная камера
+  updateCamera();
+  
+  updateUI();
+  composer.render();
+}
+
+// ============== INTERACTION ==============
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+function updateMouseNDC(e) {
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+}
+
+function getHoveredCell(e) {
+  updateMouseNDC(e);
+  raycaster.setFromCamera(mouse, camera);
+  const point = new THREE.Vector3();
+  raycaster.ray.intersectPlane(groundPlane, point);
+  if (!point) return null;
+  
+  const cx = Math.floor((point.x - MAP_OFFSET_X) / CELL);
+  const cy = Math.floor((point.z - MAP_OFFSET_Z) / CELL);
+  if (cx < 0 || cy < 0 || cx >= GRID_W || cy >= GRID_H) return null;
+  
+  return { cx, cy, point };
+}
+
+renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
+
+renderer.domElement.addEventListener('mousedown', e => {
+  if (e.button === 2) {
+    camState.isDragging = true;
+    camState.lastX = e.clientX;
+    camState.lastY = e.clientY;
+  } else if (e.button === 0) {
+    mouseDownPos = { x: e.clientX, y: e.clientY };
+  }
+});
+
+let mouseDownPos = null;
+
+window.addEventListener('mouseup', e => {
+  if (e.button === 2) camState.isDragging = false;
+  if (e.button === 0 && mouseDownPos) {
+    if (Math.hypot(e.clientX - mouseDownPos.x, e.clientY - mouseDownPos.y) < 5) {
+      handleLeftClick(e);
+    }
+    mouseDownPos = null;
+  }
+});
+
+window.addEventListener('mousemove', e => {
+  if (camState.isDragging) {
+    const dx = e.clientX - camState.lastX;
+    const dy = e.clientY - camState.lastY;
+    camState.angle += dx * 0.008;
+    camState.height = Math.max(10, Math.min(42, camState.height + dy * 0.1));
+    camState.lastX = e.clientX;
+    camState.lastY = e.clientY;
+  }
+});
+
+renderer.domElement.addEventListener('wheel', e => {
+  e.preventDefault();
+  camState.distance = Math.max(12, Math.min(50, camState.distance + e.deltaY * 0.02));
+}, { passive: false });
+
+function handleLeftClick(e) {
+  if (!gameActive) return;
+  const cell = getHoveredCell(e);
+  if (!cell) return;
+  
+  const existing = towers.find(t => t.cx === cell.cx && t.cy === cell.cy);
+  if (existing) {
+    showTowerInfo(existing);
+    return;
+  }
+  
+  hideTowerInfo();
+  
+  if (!selectedType) return;
+  
+  const base = TOWER_TYPES[selectedType];
+  if (gold < base.cost) return;
+  if (pathCellSet.has(cell.cx + ',' + cell.cy)) return;
+  
+  const tower = new Tower(cell.cx, cell.cy, selectedType);
+  towers.push(tower);
+  gold -= base.cost;
+}
+
+renderer.domElement.addEventListener('mousemove', e => {
+  if (camState.isDragging) return;
+  if (!selectedType) {
+    hoverMesh.visible = false;
+    rangeRing.visible = false;
+    return;
+  }
+  
+  const cell = getHoveredCell(e);
+  if (!cell) {
+    hoverMesh.visible = false;
+    rangeRing.visible = false;
+    return;
+  }
+  
+  hoverCellData = cell;
+  const w = cellToWorld(cell.cx, cell.cy);
+  hoverMesh.position.set(w.x, 0.25, w.z);
+  
+  const occupied = towers.some(t => t.cx === cell.cx && t.cy === cell.cy);
+  const isPath = pathCellSet.has(cell.cx + ',' + cell.cy);
+  const base = TOWER_TYPES[selectedType];
+  const canAfford = gold >= base.cost;
+  const valid = !occupied && !isPath && canAfford;
+  
+  hoverMesh.material.color.setHex(valid ? 0x00ff44 : 0xff0044);
+  hoverMesh.material.opacity = 0.35 + Math.sin(performance.now() * 0.008) * 0.1;
+  hoverMesh.visible = true;
+  
+  rangeRing.scale.set(base.range, base.range, base.range);
+  rangeRing.position.set(w.x, 0.22, w.z);
+  rangeRing.material.color.setHex(valid ? 0x00ff44 : 0xff0044);
+  rangeRing.visible = true;
+});
+
+// ============== TOWER INFO ==============
+const towerInfoEl = document.getElementById('towerInfo');
+
+function showTowerInfo(tower) {
+  selectedTower = tower;
+  const base = TOWER_TYPES[tower.type];
+  const hexColor = '#' + base.color.toString(16).padStart(6, '0');
+  towerInfoEl.innerHTML = `
+    <div style="font-weight:700; color:${hexColor}; font-size:15px; margin-bottom:8px; letter-spacing:0.5px;">${base.name} · Ур. ${tower.level}</div>
+    <div class="row"><span>Урон:</span><span>${Math.round(tower.damage)}</span></div>
+    <div class="row"><span>Радиус:</span><span>${tower.range.toFixed(1)}</span></div>
+    <div class="row"><span>Скорость:</span><span>${(1/tower.fireRate).toFixed(1)}/с</span></div>
+    ${tower.splash ? `<div class="row"><span>Сплэш:</span><span>${tower.splash}</span></div>` : ''}
+    ${tower.slow ? `<div class="row"><span>Замедление:</span><span>50%</span></div>` : ''}
+    <span class="upgrade" id="upgradeBtn">⬆ Улучшить (${tower.upgradeCost}💰)</span>
+    <span class="sell" id="sellBtn">💸 Продать (+${tower.sellPrice}💰)</span>
+  `;
+  towerInfoEl.style.display = 'block';
+  
+  setTimeout(() => {
+    const upBtn = document.getElementById('upgradeBtn');
+    const sellBtn = document.getElementById('sellBtn');
+    if (upBtn) upBtn.onclick = () => {
+      if (gold >= tower.upgradeCost) {
+        gold -= tower.upgradeCost;
+        tower.level++;
+        tower.updateStats();
+        tower.updateLevelIndicator();
+        showTowerInfo(tower);
+      }
+    };
+    if (sellBtn) sellBtn.onclick = () => {
+      gold += tower.sellPrice;
+      tower.dispose();
+      towers.splice(towers.indexOf(tower), 1);
+      hideTowerInfo();
+    };
+  }, 0);
+  
+  rangeRing.scale.set(tower.range, tower.range, tower.range);
+  rangeRing.position.set(tower.position.x, 0.22, tower.position.z);
+  rangeRing.material.color.setHex(0xffd700);
+  rangeRing.visible = true;
+}
+
+function hideTowerInfo() {
+  selectedTower = null;
+  towerInfoEl.style.display = 'none';
+  rangeRing.visible = false;
+}
+
+// ============== UI ==============
+function updateUI() {
+  document.getElementById('gold').textContent = Math.floor(gold);
+  document.getElementById('lives').textContent = lives;
+  document.getElementById('wave').textContent = wave;
+  document.getElementById('enemies').textContent = enemies.length + spawnQueue.length;
+  
+  document.querySelectorAll('.tower-btn').forEach(btn => {
+    const t = btn.dataset.type;
+    btn.classList.toggle('disabled', gold < TOWER_TYPES[t].cost);
+  });
+  
+  const startBtn = document.getElementById('startWave');
+  startBtn.disabled = waveInProgress;
+  startBtn.textContent = waveInProgress ? '⏳ Волна идёт...' : `▶ Начать волну ${wave + 1}`;
+}
+
+// ============== BUTTONS ==============
+document.querySelectorAll('.tower-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const type = btn.dataset.type;
+    if (gold < TOWER_TYPES[type].cost) return;
+    if (selectedType === type) {
+      selectedType = null;
+      btn.classList.remove('selected');
+      hoverMesh.visible = false;
+      rangeRing.visible = false;
+    } else {
+      selectedType = type;
+      hideTowerInfo();
+      document.querySelectorAll('.tower-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    }
+  });
+});
+
+document.getElementById('startWave').addEventListener('click', startWave);
+
+document.getElementById('speedBtn').addEventListener('click', () => {
+  speedMultiplier = speedMultiplier === 1 ? 2 : speedMultiplier === 2 ? 3 : 1;
+  document.getElementById('speedBtn').textContent = `⏩ Скорость: x${speedMultiplier}`;
+});
+
+document.getElementById('cameraBtn').addEventListener('click', () => {
+  camState.mode = (camState.mode + 1) % 3;
+  if (camState.mode === 0) {
+    camState.angle = Math.PI / 4; camState.distance = 28; camState.height = 22;
+  } else if (camState.mode === 1) {
+    camState.angle = Math.PI / 2; camState.distance = 0.1; camState.height = 42;
+  } else {
+    camState.angle = 0; camState.distance = 35; camState.height = 12;
+  }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); startWave(); }
+  if (e.code === 'Escape') {
+    selectedType = null;
+    hideTowerInfo();
+    document.querySelectorAll('.tower-btn').forEach(b => b.classList.remove('selected'));
+    hoverMesh.visible = false;
+    rangeRing.visible = false;
+  }
+  if (e.code === 'Digit1') document.querySelector('[data-type="archer"]').click();
+  if (e.code === 'Digit2') document.querySelector('[data-type="cannon"]').click();
+  if (e.code === 'Digit3') document.querySelector('[data-type="frost"]').click();
+  if (e.code === 'Digit4') document.querySelector('[data-type="fire"]').click();
+});
+
+// ============== WAVES ==============
+function startWave() {
+  if (waveInProgress) return;
+  wave++;
+  waveInProgress = true;
+  spawnQueue = [];
+  
+  const count = 5 + wave * 2;
+  const isBossWave = wave % 5 === 0;
+  
+  for (let i = 0; i < count; i++) {
+    let type = 'normal';
+    const r = Math.random();
+    if (wave >= 3 && r < 0.25) type = 'fast';
+    if (wave >= 4 && r > 0.75) type = 'tank';
+    spawnQueue.push({ type, delay: Math.max(0.35, 1.2 - wave * 0.05) });
+  }
+  
+  if (isBossWave) {
+    spawnQueue.push({ type: 'boss', delay: 1.5 });
+    spawnQueue.push({ type: 'boss', delay: 1.5 });
+  }
+  
+  spawnTimer = 0;
+}
+
+function endGame() {
+  gameActive = false;
+  document.getElementById('finalScore').textContent = `Волн пройдено: ${wave}`;
+  document.getElementById('gameOver').style.display = 'flex';
+}
+
+// ============== RESIZE ==============
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
+  bloomPass.setSize(window.innerWidth, window.innerHeight);
+  smaaPass.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ============== START ==============
+updateUI();
+animate();
+
+// Скрываем загрузку
+setTimeout(() => {
+  const loading = document.getElementById('loading');
+  loading.style.opacity = '0';
+  setTimeout(() => loading.remove(), 600);
+}, 800);
+</script>
+
+</body>
+</html>
